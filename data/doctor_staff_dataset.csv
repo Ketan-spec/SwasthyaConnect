@@ -1,0 +1,151 @@
+full_name,specialization,hospital,state,unique_id,email,phone,username
+Dr. Vihaan Das,Orthopedic,Max Super Speciality,Gujarat,DOC-64210,vihaan_636@example.com,+919860717525,vihaan_636
+Dr. Aadhya Kapoor,Oncologist,Apollo Hospital,Delhi,DOC-80050,aadhya_994@example.com,+919856330011,aadhya_994
+Dr. Aadhya Das,Psychiatrist,NIMHANS,Telangana,DOC-70288,aadhya_310@example.com,+919859188500,aadhya_310
+Dr. Ananya Desai,Psychiatrist,NIMHANS,Gujarat,DOC-74271,ananya_812@example.com,+919878655757,ananya_812
+Dr. Aditya Verma,Oncologist,Rainbow Hospitals,Telangana,DOC-19584,aditya_557@example.com,+919840763472,aditya_557
+Dr. Shaurya Iyer,Oncologist,Manipal Hospital,Gujarat,DOC-53865,shaurya_485@example.com,+919880565221,shaurya_485
+Dr. Priya Sharma,Pediatrician,Max Super Speciality,Maharashtra,DOC-65942,priya_419@example.com,+919865440907,priya_419
+Dr. Diya Das,Psychiatrist,AIIMS,Kerala,DOC-77510,diya_190@example.com,+919890467616,diya_190
+Dr. Riya Sharma,Neurologist,Tata Memorial,Karnataka,DOC-63902,riya_458@example.com,+919821565794,riya_458
+Dr. Ishaan Iyer,Psychiatrist,Max Super Speciality,Telangana,DOC-41412,ishaan_837@example.com,+919844348541,ishaan_837
+Dr. Arjun Singh,Pediatrician,Fortis Hospital,Delhi,DOC-54942,arjun_699@example.com,+919823119866,arjun_699
+Dr. Aarav Kapoor,Oncologist,Manipal Hospital,Tamil Nadu,DOC-21291,aarav_768@example.com,+919875636905,aarav_768
+Dr. Krishna Kumar,Pediatrician,Manipal Hospital,Karnataka,DOC-80535,krishna_689@example.com,+919870094161,krishna_689
+Dr. Saanvi Patel,Dermatologist,Apollo Hospital,Karnataka,DOC-88262,saanvi_265@example.com,+919858306330,saanvi_265
+Dr. Ishaan Menon,General Physician,Rainbow Hospitals,Karnataka,DOC-57054,ishaan_390@example.com,+919829317601,ishaan_390
+Dr. Sai Menon,Oncologist,Medanta,Gujarat,DOC-79109,sai_871@example.com,+919858130063,sai_871
+Dr. Vivaan Reddy,Cardiologist,Medanta,Kerala,DOC-38217,vivaan_159@example.com,+919818021971,vivaan_159
+Dr. Kavita Kapoor,General Physician,NIMHANS,Karnataka,DOC-41789,kavita_894@example.com,+919884031697,kavita_894
+Dr. Aditya Patel,Psychiatrist,NIMHANS,Telangana,DOC-89836,aditya_177@example.com,+919823989490,aditya_177
+Dr. Ananya Nair,Psychiatrist,Rainbow Hospitals,Karnataka,DOC-49830,ananya_915@example.com,+919827538618,ananya_915
+Dr. Vihaan Bose,Orthopedic,Rainbow Hospitals,Delhi,DOC-25196,vihaan_817@example.com,+919890718840,vihaan_817
+Dr. Aarav Das,Cardiologist,Manipal Hospital,Kerala,DOC-90080,aarav_537@example.com,+919819872585,aarav_537
+Dr. Kavita Sharma,Pulmonologist,Rainbow Hospitals,Karnataka,DOC-41431,kavita_716@example.com,+919871713597,kavita_716
+Dr. Arjun Rao,General Physician,NIMHANS,Kerala,DOC-61386,arjun_910@example.com,+919884704870,arjun_910
+Dr. Ananya Bose,General Physician,Tata Memorial,Kerala,DOC-48356,ananya_525@example.com,+919865162591,ananya_525
+Dr. Saanvi Gupta,Psychiatrist,Medanta,Gujarat,DOC-14644,saanvi_230@example.com,+919820039893,saanvi_230
+Dr. Vihaan Gupta,Pulmonologist,Manipal Hospital,Kerala,DOC-28767,vihaan_446@example.com,+919815914755,vihaan_446
+Dr. Saanvi Patel,Psychiatrist,Tata Memorial,Maharashtra,DOC-63009,saanvi_838@example.com,+919877413283,saanvi_838
+Dr. Ishaan Das,Dermatologist,Max Super Speciality,Gujarat,DOC-60921,ishaan_684@example.com,+919898228424,ishaan_684
+Dr. Aadhya Singh,Endocrinologist,Apollo Hospital,Maharashtra,DOC-62640,aadhya_488@example.com,+919816997486,aadhya_488
+Dr. Vihaan Desai,Gynaecologist,Tata Memorial,Tamil Nadu,DOC-84230,vihaan_956@example.com,+919841101261,vihaan_956
+Dr. Ishaan Bose,Pulmonologist,Apollo Hospital,Telangana,DOC-32275,ishaan_243@example.com,+919816899405,ishaan_243
+Dr. Ishaan Rao,Oncologist,Tata Memorial,Maharashtra,DOC-37971,ishaan_787@example.com,+919864309983,ishaan_787
+Dr. Kashvi Nair,General Physician,AIIMS,Gujarat,DOC-38668,kashvi_565@example.com,+919813163406,kashvi_565
+Dr. Vivaan Kumar,Cardiologist,NIMHANS,Tamil Nadu,DOC-20667,vivaan_398@example.com,+919818345972,vivaan_398
+Dr. Shaurya Desai,Orthopedic,Max Super Speciality,Gujarat,DOC-54238,shaurya_290@example.com,+919873979544,shaurya_290
+Dr. Aadhya Das,Gynaecologist,AIIMS,Kerala,DOC-10938,aadhya_41@example.com,+919856427418,aadhya_41
+Dr. Neha Sharma,Gynaecologist,Max Super Speciality,Delhi,DOC-44575,neha_821@example.com,+919884268492,neha_821
+Dr. Riya Verma,Cardiologist,Manipal Hospital,Gujarat,DOC-10636,riya_642@example.com,+919829942543,riya_642
+Dr. Riyansh Das,Endocrinologist,Rainbow Hospitals,Tamil Nadu,DOC-52449,riyansh_599@example.com,+919881096339,riyansh_599
+Dr. Aditya Gupta,Oncologist,Rainbow Hospitals,Karnataka,DOC-88954,aditya_330@example.com,+919859623872,aditya_330
+Dr. Ananya Bose,Pulmonologist,Fortis Hospital,Gujarat,DOC-40191,ananya_758@example.com,+919860699979,ananya_758
+Dr. Aarav Gupta,Dermatologist,Apollo Hospital,Maharashtra,DOC-86869,aarav_778@example.com,+919822946227,aarav_778
+Dr. Riya Sharma,Cardiologist,Manipal Hospital,Telangana,DOC-35804,riya_921@example.com,+919820311448,riya_921
+Dr. Ananya Kumar,Psychiatrist,Max Super Speciality,Maharashtra,DOC-45251,ananya_406@example.com,+919866659107,ananya_406
+Dr. Arjun Reddy,Dermatologist,Medanta,Tamil Nadu,DOC-63656,arjun_426@example.com,+919887237743,arjun_426
+Dr. Kavita Singh,Gynaecologist,NIMHANS,Gujarat,DOC-51184,kavita_525@example.com,+919834538603,kavita_525
+Dr. Rahul Patel,Endocrinologist,KIMS,Gujarat,DOC-51797,rahul_797@example.com,+919870095759,rahul_797
+Dr. Riyansh Verma,Endocrinologist,Rainbow Hospitals,Karnataka,DOC-41425,riyansh_557@example.com,+919897082929,riyansh_557
+Dr. Sai Bose,Pulmonologist,Tata Memorial,Maharashtra,DOC-29800,sai_430@example.com,+919827266872,sai_430
+Dr. Riyansh Nair,Cardiologist,Apollo Hospital,Delhi,DOC-77005,riyansh_340@example.com,+919888523838,riyansh_340
+Dr. Krishna Verma,Oncologist,NIMHANS,Kerala,DOC-59845,krishna_720@example.com,+919888166513,krishna_720
+Dr. Arjun Bose,General Physician,KIMS,Karnataka,DOC-48963,arjun_126@example.com,+919853453629,arjun_126
+Dr. Aditya Kapoor,Pulmonologist,Max Super Speciality,Delhi,DOC-13255,aditya_427@example.com,+919854297858,aditya_427
+Dr. Krishna Rao,Dermatologist,Medanta,Maharashtra,DOC-86973,krishna_839@example.com,+919839140320,krishna_839
+Dr. Arjun Reddy,Orthopedic,Apollo Hospital,Delhi,DOC-30132,arjun_785@example.com,+919893002789,arjun_785
+Dr. Vihaan Sharma,Pediatrician,KIMS,Tamil Nadu,DOC-12576,vihaan_795@example.com,+919839816848,vihaan_795
+Dr. Diya Patel,Endocrinologist,Fortis Hospital,Maharashtra,DOC-23983,diya_314@example.com,+919890138260,diya_314
+Dr. Ishaan Iyer,Neurologist,KIMS,Tamil Nadu,DOC-81806,ishaan_838@example.com,+919840279499,ishaan_838
+Dr. Vivaan Nair,Gynaecologist,Manipal Hospital,Tamil Nadu,DOC-76365,vivaan_600@example.com,+919824048964,vivaan_600
+Dr. Vivaan Desai,Pulmonologist,Fortis Hospital,Delhi,DOC-47370,vivaan_591@example.com,+919862162376,vivaan_591
+Dr. Ishaan Menon,General Physician,NIMHANS,Maharashtra,DOC-38543,ishaan_122@example.com,+919874882917,ishaan_122
+Dr. Aditya Iyer,Neurologist,Manipal Hospital,Delhi,DOC-40929,aditya_614@example.com,+919853188645,aditya_614
+Dr. Sai Gupta,Orthopedic,AIIMS,Kerala,DOC-98651,sai_851@example.com,+919872330048,sai_851
+Dr. Sneha Reddy,Orthopedic,Rainbow Hospitals,Maharashtra,DOC-34555,sneha_387@example.com,+919822597169,sneha_387
+Dr. Vihaan Nair,Pulmonologist,AIIMS,Gujarat,DOC-56658,vihaan_598@example.com,+919815490672,vihaan_598
+Dr. Saanvi Rao,Dermatologist,Medanta,Gujarat,DOC-80219,saanvi_287@example.com,+919810990250,saanvi_287
+Dr. Rahul Kumar,Neurologist,Rainbow Hospitals,Maharashtra,DOC-13050,rahul_444@example.com,+919872945887,rahul_444
+Dr. Neha Sharma,Neurologist,Medanta,Telangana,DOC-49270,neha_664@example.com,+919857899870,neha_664
+Dr. Priya Nair,Neurologist,Rainbow Hospitals,Delhi,DOC-72365,priya_100@example.com,+919812350260,priya_100
+Dr. Ananya Gupta,Orthopedic,Manipal Hospital,Telangana,DOC-10910,ananya_771@example.com,+919846887890,ananya_771
+Dr. Riyansh Iyer,Gynaecologist,Manipal Hospital,Tamil Nadu,DOC-11472,riyansh_228@example.com,+919881953342,riyansh_228
+Dr. Diya Singh,Pediatrician,Manipal Hospital,Delhi,DOC-91643,diya_680@example.com,+919834721816,diya_680
+Dr. Aadhya Gupta,Neurologist,Tata Memorial,Gujarat,DOC-28790,aadhya_603@example.com,+919820544124,aadhya_603
+Dr. Ananya Menon,General Physician,Fortis Hospital,Tamil Nadu,DOC-69329,ananya_101@example.com,+919835707283,ananya_101
+Dr. Sneha Kapoor,Pulmonologist,NIMHANS,Maharashtra,DOC-53226,sneha_832@example.com,+919874291819,sneha_832
+Dr. Riya Patel,Cardiologist,NIMHANS,Karnataka,DOC-68404,riya_690@example.com,+919817722886,riya_690
+Dr. Manya Menon,Oncologist,Tata Memorial,Kerala,DOC-35806,manya_917@example.com,+919842872923,manya_917
+Dr. Ishaan Desai,Cardiologist,Fortis Hospital,Kerala,DOC-91082,ishaan_408@example.com,+919829662859,ishaan_408
+Dr. Krishna Kumar,General Physician,Fortis Hospital,Kerala,DOC-64008,krishna_549@example.com,+919821466290,krishna_549
+Dr. Diya Gupta,Oncologist,NIMHANS,Delhi,DOC-86995,diya_655@example.com,+919831946899,diya_655
+Dr. Riya Verma,Pediatrician,NIMHANS,Telangana,DOC-89392,riya_659@example.com,+919866729124,riya_659
+Dr. Rahul Das,General Physician,KIMS,Tamil Nadu,DOC-34689,rahul_805@example.com,+919875350831,rahul_805
+Dr. Avni Das,Gynaecologist,Medanta,Telangana,DOC-85278,avni_514@example.com,+919840336273,avni_514
+Dr. Vivaan Singh,Orthopedic,Medanta,Kerala,DOC-30013,vivaan_585@example.com,+919848705602,vivaan_585
+Dr. Ananya Bose,Gynaecologist,Apollo Hospital,Karnataka,DOC-59637,ananya_560@example.com,+919877502493,ananya_560
+Dr. Aarav Desai,Pulmonologist,Fortis Hospital,Tamil Nadu,DOC-98933,aarav_143@example.com,+919827335720,aarav_143
+Dr. Aditya Desai,Neurologist,Medanta,Tamil Nadu,DOC-83107,aditya_731@example.com,+919879528381,aditya_731
+Dr. Arjun Singh,Orthopedic,Medanta,Kerala,DOC-16697,arjun_18@example.com,+919881541720,arjun_18
+Dr. Riyansh Bose,Gynaecologist,Tata Memorial,Gujarat,DOC-79576,riyansh_14@example.com,+919858923016,riyansh_14
+Dr. Ananya Rao,Gynaecologist,Manipal Hospital,Maharashtra,DOC-64152,ananya_793@example.com,+919891129682,ananya_793
+Dr. Riya Kumar,Gynaecologist,Apollo Hospital,Telangana,DOC-31842,riya_827@example.com,+919885811723,riya_827
+Dr. Krishna Kapoor,Cardiologist,AIIMS,Gujarat,DOC-50963,krishna_683@example.com,+919847807247,krishna_683
+Dr. Priya Singh,Pediatrician,KIMS,Kerala,DOC-28260,priya_701@example.com,+919823136231,priya_701
+Dr. Rahul Reddy,Gynaecologist,Rainbow Hospitals,Tamil Nadu,DOC-67983,rahul_225@example.com,+919845923377,rahul_225
+Dr. Aarav Iyer,Oncologist,KIMS,Gujarat,DOC-34558,aarav_981@example.com,+919836734329,aarav_981
+Dr. Aditya Nair,General Physician,Medanta,Karnataka,DOC-32184,aditya_781@example.com,+919868586358,aditya_781
+Dr. Vikram Desai,General Physician,KIMS,Gujarat,DOC-98756,vikram_822@example.com,+919812331427,vikram_822
+Dr. Ishaan Kumar,Cardiologist,Tata Memorial,Delhi,DOC-53896,ishaan_768@example.com,+919875453991,ishaan_768
+Dr. Sneha Iyer,Endocrinologist,Tata Memorial,Tamil Nadu,DOC-26906,sneha_309@example.com,+919820648220,sneha_309
+Dr. Vikram Das,Endocrinologist,Max Super Speciality,Telangana,DOC-39027,vikram_888@example.com,+919857805367,vikram_888
+Dr. Ananya Iyer,Pulmonologist,Medanta,Maharashtra,DOC-47663,ananya_700@example.com,+919883670874,ananya_700
+Dr. Avni Bose,Cardiologist,Fortis Hospital,Delhi,DOC-11685,avni_82@example.com,+919815839821,avni_82
+Dr. Riyansh Patel,Neurologist,Apollo Hospital,Gujarat,DOC-91598,riyansh_377@example.com,+919845022341,riyansh_377
+Dr. Neha Sharma,Cardiologist,Apollo Hospital,Karnataka,DOC-76968,neha_88@example.com,+919830776637,neha_88
+Dr. Kavita Sharma,Gynaecologist,AIIMS,Maharashtra,DOC-70994,kavita_938@example.com,+919819094566,kavita_938
+Dr. Sai Gupta,Psychiatrist,Medanta,Delhi,DOC-22407,sai_51@example.com,+919875043124,sai_51
+Dr. Aarav Singh,Oncologist,Rainbow Hospitals,Tamil Nadu,DOC-26674,aarav_661@example.com,+919824179384,aarav_661
+Dr. Riyansh Reddy,Endocrinologist,Tata Memorial,Gujarat,DOC-49489,riyansh_35@example.com,+919850938016,riyansh_35
+Dr. Shaurya Menon,Gynaecologist,NIMHANS,Gujarat,DOC-97851,shaurya_137@example.com,+919830537061,shaurya_137
+Dr. Aditya Iyer,Oncologist,Manipal Hospital,Kerala,DOC-64343,aditya_956@example.com,+919866545168,aditya_956
+Dr. Pari Sharma,Dermatologist,Medanta,Delhi,DOC-50783,pari_131@example.com,+919811477311,pari_131
+Dr. Riyansh Desai,Orthopedic,KIMS,Kerala,DOC-68887,riyansh_734@example.com,+919859051465,riyansh_734
+Dr. Manya Nair,Dermatologist,NIMHANS,Tamil Nadu,DOC-14566,manya_100@example.com,+919836352897,manya_100
+Dr. Saanvi Kumar,Neurologist,Apollo Hospital,Delhi,DOC-63958,saanvi_633@example.com,+919828598298,saanvi_633
+Dr. Neha Bose,Cardiologist,KIMS,Telangana,DOC-84630,neha_245@example.com,+919885507855,neha_245
+Dr. Vihaan Verma,Pediatrician,NIMHANS,Maharashtra,DOC-67404,vihaan_95@example.com,+919858792106,vihaan_95
+Dr. Ishaan Menon,Neurologist,Medanta,Maharashtra,DOC-14675,ishaan_519@example.com,+919884189303,ishaan_519
+Dr. Pari Menon,Pulmonologist,AIIMS,Tamil Nadu,DOC-46879,pari_293@example.com,+919822268393,pari_293
+Dr. Saanvi Patel,Orthopedic,Tata Memorial,Maharashtra,DOC-20828,saanvi_200@example.com,+919851260603,saanvi_200
+Dr. Riyansh Verma,Cardiologist,Max Super Speciality,Gujarat,DOC-86760,riyansh_422@example.com,+919881267298,riyansh_422
+Dr. Sneha Bose,General Physician,AIIMS,Telangana,DOC-59213,sneha_640@example.com,+919829290930,sneha_640
+Dr. Saanvi Desai,Endocrinologist,Rainbow Hospitals,Karnataka,DOC-25705,saanvi_883@example.com,+919882740822,saanvi_883
+Dr. Arjun Desai,Neurologist,Apollo Hospital,Gujarat,DOC-15240,arjun_435@example.com,+919854278072,arjun_435
+Dr. Avni Kumar,Psychiatrist,Rainbow Hospitals,Kerala,DOC-24556,avni_494@example.com,+919875075522,avni_494
+Dr. Arjun Menon,Oncologist,Max Super Speciality,Delhi,DOC-54198,arjun_925@example.com,+919829061305,arjun_925
+Dr. Manya Das,Orthopedic,Medanta,Delhi,DOC-28763,manya_454@example.com,+919853559783,manya_454
+Dr. Ananya Verma,Pulmonologist,Rainbow Hospitals,Tamil Nadu,DOC-49734,ananya_103@example.com,+919827076789,ananya_103
+Dr. Kavita Kapoor,Endocrinologist,NIMHANS,Karnataka,DOC-89871,kavita_799@example.com,+919881507812,kavita_799
+Dr. Riyansh Sharma,General Physician,NIMHANS,Karnataka,DOC-61247,riyansh_454@example.com,+919864765851,riyansh_454
+Dr. Ananya Iyer,Endocrinologist,Max Super Speciality,Telangana,DOC-60145,ananya_898@example.com,+919843101673,ananya_898
+Dr. Sai Patel,Cardiologist,NIMHANS,Gujarat,DOC-89596,sai_419@example.com,+919853563459,sai_419
+Dr. Rahul Nair,Oncologist,Max Super Speciality,Tamil Nadu,DOC-27808,rahul_110@example.com,+919880151117,rahul_110
+Dr. Vikram Patel,General Physician,Medanta,Tamil Nadu,DOC-63828,vikram_596@example.com,+919846075379,vikram_596
+Dr. Vivaan Singh,Gynaecologist,Apollo Hospital,Maharashtra,DOC-10196,vivaan_930@example.com,+919855910755,vivaan_930
+Dr. Manya Kumar,Dermatologist,NIMHANS,Tamil Nadu,DOC-80975,manya_155@example.com,+919835333218,manya_155
+Dr. Aarav Verma,Psychiatrist,AIIMS,Kerala,DOC-83050,aarav_585@example.com,+919881304464,aarav_585
+Dr. Manya Iyer,Dermatologist,Max Super Speciality,Gujarat,DOC-60477,manya_329@example.com,+919889614034,manya_329
+Dr. Rahul Menon,Neurologist,Tata Memorial,Maharashtra,DOC-65560,rahul_971@example.com,+919838003013,rahul_971
+Dr. Kavita Menon,Pulmonologist,Medanta,Gujarat,DOC-58870,kavita_307@example.com,+919890558181,kavita_307
+Dr. Rahul Desai,Gynaecologist,KIMS,Telangana,DOC-73630,rahul_591@example.com,+919873614708,rahul_591
+Dr. Diya Verma,Neurologist,Manipal Hospital,Kerala,DOC-88260,diya_543@example.com,+919853806155,diya_543
+Dr. Ananya Kapoor,Neurologist,AIIMS,Karnataka,DOC-80479,ananya_321@example.com,+919869249515,ananya_321
+Dr. Krishna Das,Psychiatrist,Fortis Hospital,Delhi,DOC-69411,krishna_565@example.com,+919866907623,krishna_565
+Dr. Arjun Sharma,Dermatologist,Medanta,Delhi,DOC-71257,arjun_65@example.com,+919887680722,arjun_65
+Dr. Priya Nair,Cardiologist,Medanta,Maharashtra,DOC-24858,priya_403@example.com,+919814226834,priya_403
+Dr. Kashvi Rao,Gynaecologist,Max Super Speciality,Delhi,DOC-59382,kashvi_693@example.com,+919828191034,kashvi_693
+Dr. Aarav Kapoor,Endocrinologist,Manipal Hospital,Kerala,DOC-98734,aarav_301@example.com,+919818741713,aarav_301
+Dr. Pari Verma,Oncologist,AIIMS,Telangana,DOC-28438,pari_886@example.com,+919822747153,pari_886
+Dr. Pari Das,Pediatrician,Fortis Hospital,Maharashtra,DOC-67652,pari_874@example.com,+919834597477,pari_874
