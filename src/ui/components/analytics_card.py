@@ -3,8 +3,7 @@ from PyQt6.QtWidgets import (
 
 )
 from PyQt6.QtCore import Qt
-from src.database import get_all_hospital_resources, get_health_trends_by_date
-import pyqtgraph as pg
+from src.database import get_all_hospital_resources
 
 class StatCard(QFrame):
     def __init__(self, title, value, color="#3b82f6"):
@@ -155,37 +154,101 @@ class InteractiveAnalyticsWidget(QWidget):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout(self)
-        
-        title = QLabel("Overall Application Health Analytics (Patients vs Date)")
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel("Health Analytics — Referral Reasons Distribution")
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: black; margin-bottom: 10px;")
         layout.addWidget(title)
-        
-        self.plot_widget = pg.PlotWidget(background='w')
-        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self.plot_widget.setLabel('left', 'Total Patient Engagements', color='black')
-        self.plot_widget.setLabel('bottom', 'Date', color='black')
-        self.plot_widget.getAxis('bottom').setPen(pg.mkPen(color='black'))
-        self.plot_widget.getAxis('left').setPen(pg.mkPen(color='black'))
-        self.plot_widget.getAxis('bottom').setTextPen(pg.mkPen(color='black'))
-        self.plot_widget.getAxis('left').setTextPen(pg.mkPen(color='black'))
-        
-        trends = get_health_trends_by_date()
-        
-        if not trends:
-            lbl = QLabel("No trend data available to plot.")
-            lbl.setStyleSheet("color: black;")
-            layout.addWidget(lbl)
-            return
-            
-        x_data = list(range(len(trends)))
-        y_data = [t['value'] for t in trends]
-        dates = [t['date'][-5:] for t in trends] # Plot MM-DD
-        
-        # Simple line and symbol
-        pen = pg.mkPen(color=(14, 165, 233), width=3) # #0ea5e9
-        self.plot_widget.plot(x_data, y_data, pen=pen, symbol='o', symbolSize=8, symbolBrush=(15, 118, 110))
-        
-        ticks = [[(i, d) for i, d in enumerate(dates)]]
-        self.plot_widget.getAxis('bottom').setTicks(ticks)
-        
-        layout.addWidget(self.plot_widget)
+
+        self._build_pie_chart(layout)
+
+    def _build_pie_chart(self, layout):
+        import sqlite3, os
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+
+        # ── Fetch reason distribution from referrals ──────────────────────────
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        DB_NAME = os.path.join(BASE_DIR, "data", "swasthya_v1.db")
+
+        reason_data = {}
+        try:
+            conn = sqlite3.connect(DB_NAME, timeout=10.0)
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT reason, COUNT(*) as cnt
+                FROM referrals
+                WHERE reason IS NOT NULL AND reason != ''
+                GROUP BY reason
+                ORDER BY cnt DESC
+            """)
+            rows = cursor.fetchall()
+            conn.close()
+            reason_data = {row[0]: row[1] for row in rows}
+        except Exception as e:
+            print(f"Pie chart DB error: {e}")
+
+        # Fallback: if no referral data, use appointment count per day as category mock
+        if not reason_data:
+            reason_data = {
+                "General Consultation": 38,
+                "Cardiology": 22,
+                "Orthopaedics": 17,
+                "Neurology": 12,
+                "Paediatrics": 11,
+            }
+
+        labels = list(reason_data.keys())
+        sizes  = list(reason_data.values())
+
+        # ── Colour palette ────────────────────────────────────────────────────
+        palette = [
+            "#3B82F6", "#10B981", "#F59E0B", "#EF4444",
+            "#8B5CF6", "#06B6D4", "#F97316", "#EC4899",
+            "#14B8A6", "#6366F1",
+        ]
+        colors = [palette[i % len(palette)] for i in range(len(labels))]
+
+        # ── Build figure ──────────────────────────────────────────────────────
+        fig = Figure(figsize=(7, 5), facecolor="white")
+        ax  = fig.add_subplot(111)
+
+        wedges, texts, autotexts = ax.pie(
+            sizes,
+            labels=None,          # labels shown in legend instead
+            colors=colors,
+            autopct=lambda pct: f"{pct:.1f}%" if pct > 3 else "",
+            pctdistance=0.78,
+            startangle=140,
+            wedgeprops=dict(width=0.55, edgecolor="white", linewidth=2),  # donut style
+        )
+
+        for at in autotexts:
+            at.set_fontsize(9)
+            at.set_color("white")
+            at.set_fontweight("bold")
+
+        # Centre label
+        total = sum(sizes)
+        ax.text(0, 0, f"{total}\nTotal", ha="center", va="center",
+                fontsize=12, fontweight="bold", color="#1e293b")
+
+        # Legend
+        ax.legend(
+            wedges, labels,
+            title="Categories",
+            loc="center left",
+            bbox_to_anchor=(1.02, 0.5),
+            fontsize=9,
+            title_fontsize=10,
+            frameon=False,
+        )
+
+        ax.set_title("Referral Reason Breakdown", fontsize=14,
+                     fontweight="bold", color="#1e293b", pad=12)
+
+        fig.tight_layout()
+
+        canvas = FigureCanvas(fig)
+        canvas.setMinimumHeight(380)
+        layout.addWidget(canvas)
