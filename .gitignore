@@ -1,1 +1,22 @@
-.aider*
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+*.csv
+
+# Virtual environment
+venv/
+env/
+*.egg-info/
+
+# OS files
+.DS_Store
+
+# Large binaries
+*.dll
+*.exe
+*.so
+*.dylib*
