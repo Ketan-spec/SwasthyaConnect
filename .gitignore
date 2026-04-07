@@ -12,9 +12,17 @@ env/
 # Ignore OS files
 .DS_Store
 
-# Ignore database and large CSVs
+# Ignore databases and CSVs
 *.db
 *.csv
+
+# Ignore local storage and uploads
+storage/
+uploads/
+medibrief/storage/
+medibrief/uploads/
+*.pdf
+*.json
 
 # Ignore DLLs and other binaries
 *.dll
