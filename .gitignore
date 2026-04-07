@@ -1,22 +1,29 @@
-# Python
+# Ignore Python cache and compiled files
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
-*.sqlite3
-*.db
-*.csv
 
-# Virtual environment
+# Ignore virtual environments
+.venv/
 venv/
 env/
 *.egg-info/
 
-# OS files
+# Ignore OS files
 .DS_Store
 
-# Large binaries
+# Ignore database and large CSVs
+*.db
+*.csv
+
+# Ignore DLLs and other binaries
 *.dll
 *.exe
 *.so
-*.dylib*
+*.dylib
+
+# Ignore Aider artifacts
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v4/
+.continue/
