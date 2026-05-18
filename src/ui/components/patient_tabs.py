@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QLineEdit, QMessageBox, QScrollArea, QFrame, QFileDialog
 )
 from PyQt6.QtCore import Qt
-from src.database import DB_NAME, get_treatment_updates
+from src.database import DB_NAME, get_treatment_updates, get_patient_prescriptions, get_patient_all_medicine_names
 import sqlite3
 import json
 from src.ui.components.medibrief_dialog import MedibriefAnalyzerDialog
@@ -43,9 +43,9 @@ class RecordsWidget(QWidget):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Medical Report", "", "PDF/Image Files (*.pdf *.png *.jpg *.jpeg)")
         if file_path:
             dialog = MedibriefAnalyzerDialog(self, file_path, self.user_id)
-            if dialog.exec():
-                # If accepted (saved successfully), reload the table
-                self.load_data()
+            dialog.exec()
+            # Always reload — auto-save fires on close even without clicking Save
+            self.load_data()
 
     def load_data(self):
         try:
@@ -87,9 +87,9 @@ class AppointmentsWidget(QWidget):
             conn = sqlite3.connect(DB_NAME, timeout=10.0)
             c = conn.cursor()
             c.execute('''
-                SELECT a.date, a.time, u.full_name, a.status 
+                SELECT a.date, a.time, COALESCE(u.full_name, 'From Medical Report'), a.status 
                 FROM appointments a 
-                JOIN users u ON a.doctor_id = u.id 
+                LEFT JOIN users u ON a.doctor_id = u.id AND a.doctor_id != 0
                 WHERE a.patient_id = ? 
                 ORDER BY a.date DESC
             ''', (self.user_id,))
@@ -99,9 +99,20 @@ class AppointmentsWidget(QWidget):
             self.table.setRowCount(len(rows))
             for r, row in enumerate(rows):
                 for c, val in enumerate(row):
-                    self.table.setItem(r, c, QTableWidgetItem(str(val)))
+                    item = QTableWidgetItem(str(val))
+                    if c == 3: # Status column
+                        status = str(val).lower()
+                        if status == 'pending':
+                            item.setForeground(Qt.GlobalColor.darkYellow)
+                        elif status in ('accepted', 'scheduled'):
+                            item.setForeground(Qt.GlobalColor.darkGreen)
+                        elif status in ('completed',):
+                            item.setForeground(Qt.GlobalColor.darkCyan)
+                        elif status in ('rejected', 'cancelled'):
+                            item.setForeground(Qt.GlobalColor.darkRed)
+                    self.table.setItem(r, c, item)
         except Exception as e:
-            pass
+            print(f"Error loading appointments: {e}")
 
 class PrescriptionsWidget(QWidget):
     def __init__(self, user_id):
@@ -132,26 +143,27 @@ class PrescriptionsWidget(QWidget):
 
     def load_data(self):
         try:
-            conn = sqlite3.connect(DB_NAME, timeout=10.0)
-            c = conn.cursor()
-            c.execute("SELECT date_added, title, description FROM medical_records WHERE patient_id = ? AND record_type = 'Prescription' ORDER BY date_added DESC", (self.user_id,))
-            rows = c.fetchall()
-            conn.close()
-            
+            rows = get_patient_prescriptions(self.user_id)
+            self.table.setColumnCount(5)
+            self.table.setHorizontalHeaderLabels(["Date", "Medicine", "Dosage", "Frequency", "Duration"])
+            self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
             self.table.setRowCount(len(rows))
             for r, row in enumerate(rows):
-                for c, val in enumerate(row):
-                    if c == 0 and val: val = val.split(" ")[0]
-                    self.table.setItem(r, c, QTableWidgetItem(str(val)))
+                date_val = row.get("date_added", "").split(" ")[0]
+                self.table.setItem(r, 0, QTableWidgetItem(date_val))
+                self.table.setItem(r, 1, QTableWidgetItem(str(row.get("medicine_name", ""))))
+                self.table.setItem(r, 2, QTableWidgetItem(str(row.get("dosage") or "—")))
+                self.table.setItem(r, 3, QTableWidgetItem(str(row.get("frequency") or "—")))
+                self.table.setItem(r, 4, QTableWidgetItem(str(row.get("duration") or "—")))
         except Exception as e:
-            pass
+            print(f"Error loading prescriptions: {e}")
 
     def upload_pdf(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Prescription", "", "PDF/Image Files (*.pdf *.png *.jpg *.jpeg)")
         if file_path:
             dialog = MedibriefAnalyzerDialog(self, file_path, self.user_id, record_type="Prescription")
-            if dialog.exec():
-                self.load_data()
+            dialog.exec()
+            self.load_data()  # Always reload after close
 
 class SettingsWidget(QWidget):
     def __init__(self, user_data):
@@ -233,6 +245,14 @@ class TreatmentStatusWidget(QWidget):
         title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
         layout.addWidget(title)
         
+        self.current_status_label = QLabel("Current Status: None")
+        self.current_status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background-color: #f1f5f9; padding: 10px; border-radius: 5px;")
+        layout.addWidget(self.current_status_label)
+        
+        history_title = QLabel("Treatment History")
+        history_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #475569; margin-top: 10px;")
+        layout.addWidget(history_title)
+        
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Date/Time", "Status", "Notes", "Updated By", "Role"])
@@ -244,6 +264,16 @@ class TreatmentStatusWidget(QWidget):
     def load_data(self):
         try:
             updates = get_treatment_updates(self.user_id)
+            if updates:
+                latest = updates[0]
+                self.current_status_label.setText(f"Current Status: {latest['status']} (Updated by {latest['updated_by_name']}, {latest['updated_by_role']})\nNotes: {latest['notes']}")
+                if latest['status'].lower() in ['completed', 'discharged']:
+                    self.current_status_label.setStyleSheet(self.current_status_label.styleSheet() + "border-left: 5px solid #10b981;")
+                else:
+                    self.current_status_label.setStyleSheet(self.current_status_label.styleSheet() + "border-left: 5px solid #3b82f6;")
+            else:
+                self.current_status_label.setText("No active or historical treatments found.")
+                
             self.table.setRowCount(len(updates))
             for r, row in enumerate(updates):
                 self.table.setItem(r, 0, QTableWidgetItem(str(row['timestamp'])))
@@ -253,6 +283,7 @@ class TreatmentStatusWidget(QWidget):
                 self.table.setItem(r, 4, QTableWidgetItem(str(row['updated_by_role'])))
         except Exception as e:
             pass
+
 
 class MedicineVerificationWidget(QWidget):
     def __init__(self, user_id):
@@ -336,7 +367,7 @@ class MedicineVerificationWidget(QWidget):
             price = row.get("price", "N/A")
             self.table.setItem(r, 3, QTableWidgetItem(f"₹ {price}"))
 
-        self.verify_against_prescriptions(query)
+        self.verify_against_records(query)
 
     def on_medicine_selected(self, item):
         row = item.row()
@@ -383,31 +414,48 @@ class MedicineVerificationWidget(QWidget):
     def on_ai_finished(self):
         pass
 
-    def verify_against_prescriptions(self, query):
+    def verify_against_records(self, query):
         med_name = query.lower()
         try:
             conn = sqlite3.connect(DB_NAME, timeout=10.0)
             c = conn.cursor()
-            c.execute("SELECT summary_json FROM medical_records WHERE patient_id = ? AND record_type = 'Prescription'", (self.user_id,))
+            
+            # Check new prescriptions table first (most reliable)
+            c.execute("SELECT medicine_name FROM prescriptions WHERE patient_id = ?", (self.user_id,))
+            presc_rows = c.fetchall()
+            found_prescription = any(med_name in str(row[0]).lower() for row in presc_rows if row[0])
+            
+            # Also check summary_json for legacy/report matches
+            c.execute("SELECT summary_json, record_type FROM medical_records WHERE patient_id = ? AND summary_json IS NOT NULL", (self.user_id,))
             rows = c.fetchall()
             conn.close()
             
-            found = False
+            found_report = False
             for row in rows:
                 if row[0]:
                     try:
-                        summary = json.loads(row[0])
-                        if med_name in json.dumps(summary).lower():
-                            found = True
-                            break
-                    except:
+                        import json as _json
+                        summary = _json.loads(row[0])
+                        raw = _json.dumps(summary).lower()
+                        if med_name in raw:
+                            if row[1] == 'Prescription' and not found_prescription:
+                                found_prescription = True
+                            elif row[1] == 'Report':
+                                found_report = True
+                    except Exception:
                         pass
                         
-            if found:
-                self.result_lbl.setText(self.result_lbl.text() + "\n✅ VERIFIED: This medicine matches your active prescriptions. It is safe to take.")
+            msg = ""
+            if found_prescription:
+                msg += "\n✅ VERIFIED: Matches your active prescriptions."
+            if found_report:
+                msg += "\n✅ VERIFIED: Related condition/medicine found in your lab reports."
+                
+            if found_prescription or found_report:
+                self.result_lbl.setText(self.result_lbl.text() + msg)
                 self.result_lbl.setStyleSheet("color: green; font-size: 14px; font-weight: bold;")
             else:
-                self.result_lbl.setText(self.result_lbl.text() + "\n❌ WARNING: This medicine was NOT FOUND in your recent prescriptions. Verify with your doctor.")
+                self.result_lbl.setText(self.result_lbl.text() + "\n❌ WARNING: Term NOT FOUND in your recent records. Verify with your doctor.")
                 self.result_lbl.setStyleSheet(self.result_lbl.styleSheet() + "; color: red; font-weight: bold;")
         except Exception as e:
-            pass
+            print(f"Medicine verify error: {e}")

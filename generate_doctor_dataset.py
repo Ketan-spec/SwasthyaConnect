@@ -7,8 +7,9 @@ import hashlib
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_NAME = os.path.join(BASE_DIR, "data", "swasthya_v1.db")
 DATASET_CSV = os.path.join(BASE_DIR, "data", "doctor_staff_dataset.csv")
+CREDENTIALS_TXT = os.path.join(BASE_DIR, "data", "doctors_credentials.txt")
 
-def generate_dataset(num_doctors=100):
+def generate_dataset(num_doctors=50):
     os.makedirs(os.path.join(BASE_DIR, "data"), exist_ok=True)
     
     first_names = ["Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Riyansh", "Krishna", "Ishaan", "Shaurya", 
@@ -19,58 +20,63 @@ def generate_dataset(num_doctors=100):
     specializations = ["Cardiologist", "Neurologist", "Oncologist", "Pediatrician", "Orthopedic", 
                        "Dermatologist", "General Physician", "Endocrinologist", "Psychiatrist", "Gynaecologist", "Pulmonologist"]
                        
-    hospitals = ["Apollo Hospital", "Fortis Hospital", "Tata Memorial", "Rainbow Hospitals", "Medanta", 
-                 "Max Super Speciality", "Manipal Hospital", "AIIMS", "NIMHANS", "KIMS"]
-                 
-    states = ["Maharashtra", "Delhi", "Karnataka", "Telangana", "Kerala", "Tamil Nadu", "Gujarat"]
+    states = ["Maharashtra", "Delhi", "Karnataka", "Telangana", "Kerala", "Tamil Nadu", "Gujarat", "Uttar Pradesh", "West Bengal", "Rajasthan"]
 
     doctors_list = []
     
-    # Pre-populate with our known doctors for consistency if needed, but we'll generate all 100 randomly
     for i in range(num_doctors):
-        name = f"Dr. {random.choice(first_names)} {random.choice(last_names)}"
+        first_name = random.choice(first_names)
+        last_name = random.choice(last_names)
+        name = f"Dr. {first_name} {last_name}"
         spec = random.choice(specializations)
-        hosp = random.choice(hospitals)
         state = random.choice(states)
         uid = f"DOC-{random.randint(10000, 99999)}"
-        email = f"{name.split(' ')[1].lower()}_{random.randint(10,999)}@example.com"
+        email = f"{first_name.lower()}_{random.randint(10,999)}@hospital.com"
         phone = f"+9198{random.randint(10000000,99999999)}"
+        
+        username = email.split('@')[0]
+        password = f"Pass@{random.randint(100,999)}"
         
         doctors_list.append({
             "full_name": name,
             "specialization": spec,
-            "hospital": hosp,
             "state": state,
             "unique_id": uid,
             "email": email,
             "phone": phone,
-            "username": email.split('@')[0]
+            "username": username,
+            "password": password
         })
         
     return doctors_list
 
-def save_to_csv(doctors):
-    keys = doctors[0].keys()
-    with open(DATASET_CSV, 'w', newline='', encoding='utf-8') as output_file:
-        dict_writer = csv.DictWriter(output_file, fieldnames=keys)
-        dict_writer.writeheader()
-        dict_writer.writerows(doctors)
-    print(f"Generated {len(doctors)} doctors and saved dataset to {DATASET_CSV}")
+def save_credentials(doctors):
+    with open(CREDENTIALS_TXT, 'w', encoding='utf-8') as f:
+        f.write("SWASTHYA CONNECT - DOCTOR CREDENTIALS\n")
+        f.write("="*50 + "\n\n")
+        for doc in doctors:
+            f.write(f"Name: {doc['full_name']}\n")
+            f.write(f"Specialization: {doc['specialization']}\n")
+            f.write(f"State: {doc['state']}\n")
+            f.write(f"Gov ID: {doc['unique_id']}\n")
+            f.write(f"Login (Username): {doc['username']}\n")
+            f.write(f"Password: {doc['password']}\n")
+            f.write("-" * 30 + "\n")
+    print(f"Credentials for {len(doctors)} doctors saved to {CREDENTIALS_TXT}")
 
 def update_database(doctors):
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
-        demo_pwd = hashlib.sha256("Password123!".encode()).hexdigest()
-        
         doc_count = 0
         for doc in doctors:
+            hashed_pwd = hashlib.sha256(doc['password'].encode('utf-8')).hexdigest()
             try:
                 cursor.execute('''
                     INSERT INTO users (username, password, role, full_name, email, phone, unique_id, specialization, state)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (doc['username'], demo_pwd, "Doctor", doc['full_name'], doc['email'], doc['phone'], doc['unique_id'], doc['specialization'], doc['state']))
+                ''', (doc['username'], hashed_pwd, "doctor", doc['full_name'], doc['email'], doc['phone'], doc['unique_id'], doc['specialization'], doc['state']))
                 doc_count += 1
             except sqlite3.IntegrityError:
                 # Skip duplicate usernames/IDs if they randomly clash
@@ -85,6 +91,7 @@ def update_database(doctors):
 
 if __name__ == "__main__":
     print("Generating Doctor Staff Dataset...")
-    docs = generate_dataset(150) # Generates 150 Doctors
-    save_to_csv(docs)
+    docs = generate_dataset(50) # Generates 50 Doctors
+    save_credentials(docs)
     update_database(docs)
+

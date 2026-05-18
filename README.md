@@ -9,11 +9,24 @@
 
 The **AI-Powered Digital Healthcare Management & Monitoring System** is a unified digital health platform designed to serve Patients, Doctors, Hospitals, and Government Health Authorities. It aligns with the Health Data Information & Management System (HDIMS) under the Health & Family Welfare Department, Government of NCT of Delhi.
 
-## 2. Core Problem Statement
+## 2. Team & Technical Contributions
+
+This platform was developed collaboratively with explicit technical domain and layer mapping for each member:
+
+- **Ketan:** Local Ollama AI Server Integration, Backend Multi-modal JSON Extraction Prompts, Dynamic Dashboard Manipulation, and Hybrid OCR Engine execution.  
+  *Tech Mapping:* **Ollama Engine** (using `qwen2:0.5b`/`mistral`), **PyMuPDF (`fitz`)** for rapid native PDF text streaming, and **Tesseract OCR (`pytesseract`/`Pillow`)** fallback extraction pipeline for scanned prescription images.
+- **Vedant:** Software Architecture Control, Component Lifecycle Binding, Programmatic UI Stiches, Signal/Slot Event Pipelines, and High-fidelity Report Document Exporters.  
+  *Tech Mapping:* Core event bridges linking background asynchronous worker threads (`QThread`) directly with GUI dispatchers, and **ReportLab** dynamic vector template rendering with registered dual-weight local typography assets (Noto Sans Devanagari).
+- **Anushka:** UI/UX Design System Construction, Global Palette Scaling, Responsive Interface Architectures, Medical Visual Aesthetics, and Interactive Component Lookups.  
+  *Tech Mapping:* Modern **PyQt6** layout orchestration built around deeply responsive Qt Style Sheet (QSS) parameter styling (`src/ui/styles.py`) delivering premium glassmorphic surfaces and high-contrast clinical reading frames.
+- **Bhushan:** Relational Database Engine Operations, Multi-table Schema Structuring, Statistical Windowing Aggregations, Seeding Automation, and System Persistence Bindings.  
+  *Tech Mapping:* Native **SQLite3** cursor interactions, multi-table cascade definitions linking historical logs (`users`, `prescriptions`, `appointments`), and real-time visualization layer translations powered by **pyqtgraph** (`PlotWidget`/`BarGraphItem`).
+
+## 3. Core Problem Statement
 
 Healthcare data in India is currently scattered, paper-based, or siloed. Patients struggle to understand reports, and government hospitals lack transparent treatment tracking. Data is not structured for real-time monitoring or policy planning.
 
-## 3. Solution Vision
+## 4. Solution Vision
 
 To build a secure, centralized, AI-enabled healthcare platform that:
 - Consolidates patient medical data into a unified digital timeline.
@@ -22,7 +35,7 @@ To build a secure, centralized, AI-enabled healthcare platform that:
 - Provides anonymized dashboards for government monitoring.
 - Ensures ethical, consent-based data sharing.
 
-## 4. Key Features
+## 5. Key Features
 
 ### A. Patient Module
 - Unified digital health records with chronological timeline.
@@ -43,45 +56,67 @@ To build a secure, centralized, AI-enabled healthcare platform that:
 - Disease trend analysis and treatment delay monitoring.
 - Medicine demand forecasting and policy insights.
 
-## 5. Tech Stack
+## 6. Tech Stack & Implementation Mapping
 
-**Swasthya Connect** is built using a modern, locally-executable stack:
+**Swasthya Connect** is built on a highly modular, secure, and offline-ready technology stack. Below is the full stack mapping with corresponding project file implementations:
 
-- **Frontend / GUI:** [PyQt6](https://www.riverbankcomputing.com/software/pyqt/)
-- **Data Visualization:** [pyqtgraph](https://www.pyqtgraph.org/)
-- **Backend Logic:** Python 3.10+
-- **Database:** [SQLite](https://sqlite.org/)
-- **AI Intelligence:** [Ollama](https://ollama.com/) (Local Large Language Model server)
-- **AI Models:** Qwen 2.5, Mistral, Llama 3
+### A. Frontend GUI & Styling
+- **Framework:** **PyQt6** (`requirements.txt`)  
+  *Files:* Main interface layouts across `src/ui/components/*.py` and `src/ui/dashboards/*.py`.
+- **Design System:** Vanilla CSS via Qt Style Sheets (QSS)  
+  *Files:* `src/ui/styles.py` defines cohesive tokens (Glassmorphic cards, teal/slate colors, border radii, modern typography).
+- **Data Visualization:** **pyqtgraph**  
+  *Files:* Used heavily in `src/ui/dashboards/patient_dashboard.py` (Custom node graphs, trend charts, dynamic disease/diagnosis frequency bar graphs).
 
-## 6. Project Structure
+### B. Backend Intelligence & Data Pipelines
+- **Core Language:** Python 3.10+  
+  *Files:* Application routing in `src/main.py`.
+- **Database Engine:** **SQLite3**  
+  *Files:* Fully managed in `src/database.py`. Implements complex table joins, transaction handling, and schema definitions (`users`, `medical_records`, `appointments`, `prescriptions`, `referrals`, `treatment_tracking`, `hospital_resources`).
+- **AI Processing Server:** **Ollama** (Local execution for absolute patient data privacy)  
+  *Files:* Integrated via standard HTTP payload bindings in `src/services/medibrief_service.py` and `src/services/ai_service.py`.
+- **AI Models Supported:** Qwen 2.5, Qwen 2 (0.5b), Mistral, Llama 3.
+
+### C. Advanced Feature Implementations & Methods
+- **Local PDF/Image Text Extraction (OCR):** Uses `pdfminer.six` and standard text stream parsing.  
+  *Method:* `process_pdf_for_text(pdf_path)` in `src/services/ocr_service.py`.
+- **Strict No-Hallucination Extraction:** Zero-hallucination structured parsing using an advanced multi-modal JSON prompt framework.  
+  *Method:* `generate_json_summary(...)` in `src/services/medibrief_service.py`. Extracts clean arrays for vitals, symptoms, structured medications, and explicit abnormal values.
+- **Strict Domain-Filtered Chatbot (RAG Guardrails):** Enforces rigid instruction boundaries to instantly block non-medical queries.  
+  *Methods:* `answer_question(...)` in `src/services/medibrief_service.py`, `chat_with_assistant(...)` and `chat_with_assistant_stream(...)` in `src/services/ai_service.py`.
+- **Automated Dialog State Flow & Auto-Saving:** Bridges UI window closes to execute background database syncs silently.  
+  *Method:* `save_to_db(silent=True)` hooked into `closeEvent(...)` inside `src/ui/components/medibrief_dialog.py`. Automatically writes past appointment histories and distinct prescription row mappings.
+- **Multilingual Report Generation (PDF Export):** High-fidelity exported summary documents via ReportLab supporting localized script generation (Devanagari font support for Hindi and Marathi).  
+  *Method:* `build_summary_pdf_bytes(...)` in `src/services/medibrief_pdf.py`.
+
+## 7. Project Structure
 
 ```text
 Swasthya_Connect/
 ├── src/
 │   ├── main.py              # Application Entry Point
-│   ├── database.py          # Database Schema & Initialization
-│   ├── ui/                  # Dashboard & Widget Implementations
-│   │   ├── components/      # Reusable UI elements (Chatbot, Medibrief)
-│   │   └── dashboards/      # Role-specific views (Patient, Doctor, Gov)
-│   ├── services/            # AI Integration & Business Logic
-│   └── utils/               # Data processing helpers
-├── data/                    # SQLite Database & CSV Datasets
-├── storage/                 # Medical records & reports
-└── scripts/                 # Maintenance & Seeding scripts
+│   ├── database.py          # Database Schema & Aggregation Logic
+│   ├── ui/                  # UI Interface Implementations
+│   │   ├── components/      # Reusable widgets (Medibrief dialogs, Chatbot, Tables)
+│   │   └── dashboards/      # Role-specific dashboard graphs & analytics
+│   ├── services/            # OCR, Local Ollama integration, PDF Builder
+│   └── utils/               # Prompts & static maps
+├── data/                    # Local SQLite DB storage & file uploads
+├── storage/                 # Persistent record assets
+└── scripts/                 # Mock generation workflows
 ```
 
 ---
 
-## 7. Getting Started
+## 8. Getting Started
 
 ### Prerequisites
 
 1.  **Python 3.10+**
-2.  **Ollama** installed and running on `localhost:11434`.
-3.  **Pull Required AI Models:**
+2.  **Ollama** installed and active on `localhost:11434`.
+3.  **Pull Required Models:**
     ```bash
-    ollama pull qwen2.5:latest
+    ollama pull qwen2:0.5b
     ollama pull mistral:latest
     ```
 
@@ -96,7 +131,7 @@ Swasthya_Connect/
 2.  **Create a virtual environment:**
     ```bash
     python -m venv .venv
-    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+    source .venv/bin/activate  # Windows: .venv\Scripts\activate
     ```
 
 3.  **Install dependencies:**
@@ -105,7 +140,7 @@ Swasthya_Connect/
     ```
 
 4.  **Initialize the Database:**
-    The application will automatically initialize the SQLite database on first run. To seed it with dummy data:
+    The system initializes automatically on startup. To seed sample datasets:
     ```bash
     python seed_data.py
     python generate_doctor_dataset.py
@@ -113,21 +148,21 @@ Swasthya_Connect/
 
 ### Running the Application
 
-Launch the main application interface:
+Launch the platform:
 ```bash
 python src/main.py
 ```
 
 ---
 
-## 8. Ethics, Privacy & Governance
+## 9. Ethics, Privacy & Governance
 
 - **Data Ownership:** Patients retain full control over their health data.
 - **Consent-Based:** Data sharing requires explicit patient approval.
 - **Anonymized:** Administrative access is restricted to anonymized, aggregated datasets.
 - **Local AI:** All medical data processing happens locally via Ollama to ensure privacy.
 
-## 9. License
+## 10. License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 

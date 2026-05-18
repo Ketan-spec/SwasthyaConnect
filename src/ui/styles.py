@@ -81,32 +81,35 @@ def get_sidebar_style(role):
 CONTENT_STYLE = """
     * {
         font-family: 'Segoe UI', 'Inter', sans-serif;
-        color: #0f172a;
+        color: #1e293b;
     }
     QWidget#ContentArea {
-        background-color: #f8fafc;
+        background-color: #f0f4f8; /* Soft blue-gray */
     }
     QFrame#Card {
-        background-color: white;
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
+        background-color: rgba(255, 255, 255, 0.95);
+        border-radius: 16px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+    QFrame#Card:hover {
+        border: 1px solid #93c5fd;
     }
     QLabel#CardTitle {
-        font-size: 16px;
-        font-weight: 700;
-        color: #1e293b;
-        padding-bottom: 4px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #64748b;
+        padding-bottom: 2px;
     }
     QLabel#CardValue {
-        font-size: 32px;
+        font-size: 28px;
         font-weight: 800;
         color: #0f172a;
     }
     QLabel#UserWelcome {
-        font-size: 28px;
+        font-size: 32px;
         font-weight: 800;
         color: #0f172a;
-        margin-bottom: 24px;
+        margin-bottom: 10px;
         letter-spacing: -0.5px;
     }
     QTableWidget {

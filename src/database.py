@@ -151,6 +151,21 @@ def initialize_database():
         )
     ''')
     
+    # Create Prescriptions Table (per-medicine rows, linked to medical_records)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS prescriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            medicine_name TEXT NOT NULL,
+            dosage TEXT,
+            frequency TEXT,
+            duration TEXT,
+            source_record_id INTEGER,
+            date_added DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (patient_id) REFERENCES users (id)
+        )
+    ''')
+    
     print("Database initialized (Clean Slate - v1).")
     conn.commit()
     conn.close()
@@ -612,3 +627,226 @@ def get_doctor_dashboard_stats(doctor_id):
     except Exception as e:
         print(f"Error fetching doctor stats: {e}")
     return stats
+
+def book_appointment(patient_id, doctor_id, date_str, time_str):
+    """Creates a new appointment with 'Pending' status."""
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO appointments (patient_id, doctor_id, date, time, status)
+            VALUES (?, ?, ?, ?, 'Pending')
+        ''', (patient_id, doctor_id, date_str, time_str))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error booking appointment: {e}")
+        return False
+
+def get_aggregated_patient_data(patient_id):
+    """Parses all medical_records for a patient and aggregates dynamic insights for the dashboard."""
+    import json
+    data = {
+        "conditions": set(),
+        "symptoms": set(),
+        "key_findings": [],
+        "vital_signs": [],
+        "abnormal_count": 0,
+        "recent_summaries": [],
+        "risk_score": 100, # Starts at 100, goes down based on abnormals
+        "has_data": False,
+        "record_count": 0
+    }
+    
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute("SELECT summary_json FROM medical_records WHERE patient_id = ? AND record_type IN ('Report', 'Prescription') ORDER BY date_added DESC", (patient_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        data["record_count"] = len(rows)
+        if len(rows) > 0:
+            data["has_data"] = True
+            
+        for row in rows:
+            if not row[0]: continue
+            try:
+                summary = json.loads(row[0])
+                
+                # Active Conditions (from impressions)
+                impressions = summary.get("impression_in_simple_words", [])
+                for imp in impressions:
+                    if len(imp) < 40: # Avoid long paragraphs
+                        data["conditions"].add(imp)
+                        
+                # New rich extraction: key findings and vitals
+                findings = summary.get("key_findings", [])
+                if findings:
+                    data["key_findings"].extend(findings)
+                    
+                vitals = summary.get("vital_signs", [])
+                if vitals:
+                    data["vital_signs"].extend(vitals)
+                        
+                # Abnormalities & Symptoms
+                abnormals = summary.get("abnormal_values_explained", [])
+                for abn in abnormals:
+                    if isinstance(abn, dict):
+                        data["abnormal_count"] += 1
+                        test_name = abn.get("test", "")
+                        if len(test_name) < 20:
+                            data["symptoms"].add(test_name)
+                    else:
+                        data["abnormal_count"] += 1
+                        
+                # Doctor Summary (from overall summary bullets)
+                bullets = summary.get("overall_summary_bullets", [])
+                if bullets:
+                    data["recent_summaries"].extend(bullets[:2]) # take top 2 from each report
+                    
+            except Exception as e:
+                pass
+                
+        # Calculate Mock Risk Score based on abnormals
+        penalty = min(data["abnormal_count"] * 5, 60)
+        data["risk_score"] = max(100 - penalty, 10)
+        
+        # Convert sets to lists
+        data["conditions"] = list(data["conditions"])
+        data["symptoms"] = list(data["symptoms"])
+        
+        return data
+    except Exception as e:
+        print(f"Error aggregating patient data: {e}")
+        return data
+def add_past_appointment(patient_id, date_str, source_note="Extracted from report"):
+    """Inserts a historical appointment derived from a medical report (doctor_id=0)."""
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO appointments (patient_id, doctor_id, date, time, status)
+            VALUES (?, 0, ?, '00:00', 'Completed')
+        ''', (patient_id, date_str))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error adding past appointment: {e}")
+        return False
+
+def add_prescription_entry(patient_id, medicine_name, dosage=None, frequency=None, duration=None, source_record_id=None):
+    """Inserts a single prescription medicine row linked to a patient."""
+    try:
+        if not medicine_name or str(medicine_name).lower() in ("null", "none", ""):
+            return False
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO prescriptions (patient_id, medicine_name, dosage, frequency, duration, source_record_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (patient_id, medicine_name, dosage, frequency, duration, source_record_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error adding prescription entry: {e}")
+        return False
+
+def get_patient_prescriptions(patient_id):
+    """Returns all prescription medicine rows for a patient from the prescriptions table."""
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT date_added, medicine_name, dosage, frequency, duration FROM prescriptions WHERE patient_id = ? ORDER BY date_added DESC",
+            (patient_id,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error fetching prescriptions: {e}")
+        return []
+
+def get_patient_all_medicine_names(patient_id):
+    """Returns flat list of all medicine names for medicine verification."""
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT medicine_name FROM prescriptions WHERE patient_id = ?", (patient_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [r[0] for r in rows if r[0]]
+    except Exception as e:
+        print(f"Error fetching medicine names: {e}")
+        return []
+
+def get_patient_disease_trend(patient_id):
+    """Parses all summary_json and returns {diagnosis: count} dict for the dashboard trend chart."""
+    import json
+    trend = {}
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT summary_json FROM medical_records WHERE patient_id = ? AND summary_json IS NOT NULL ORDER BY date_added DESC",
+            (patient_id,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        for row in rows:
+            if not row[0]: continue
+            try:
+                obj = json.loads(row[0])
+                # From new schema
+                for d in obj.get("diagnosis", []):
+                    if d and len(str(d)) < 50:
+                        trend[d] = trend.get(d, 0) + 1
+                # From legacy schema
+                for imp in obj.get("impression_in_simple_words", []):
+                    if imp and len(str(imp)) < 50:
+                        trend[imp] = trend.get(imp, 0) + 1
+            except Exception:
+                pass
+        return trend
+    except Exception as e:
+        print(f"Error building disease trend: {e}")
+        return trend
+
+def get_patient_vitals_timeline(patient_id):
+    """Returns a list of {date, blood_pressure, heart_rate, spO2} from all uploaded reports."""
+    import json
+    timeline = []
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT date_added, summary_json FROM medical_records WHERE patient_id = ? AND summary_json IS NOT NULL ORDER BY date_added ASC",
+            (patient_id,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        for date_added, raw_json in rows:
+            if not raw_json: continue
+            try:
+                obj = json.loads(raw_json)
+                vitals = obj.get("vitals", {})
+                if vitals and any(vitals.values()):
+                    timeline.append({
+                        "date": date_added.split(" ")[0] if date_added else "",
+                        "blood_pressure": vitals.get("blood_pressure"),
+                        "heart_rate": vitals.get("heart_rate"),
+                        "spO2": vitals.get("spO2"),
+                    })
+            except Exception:
+                pass
+        return timeline
+    except Exception as e:
+        print(f"Error building vitals timeline: {e}")
+        return []

@@ -82,3 +82,22 @@ Analytics:
 • Medicine demand forecasting
 • Health scheme tracking
 • AI‑generated policy insights
+
+## 7️⃣ TECH STACK
+• Frontend / GUI: PyQt6
+• Data Visualization: pyqtgraph
+• Backend Logic: Python 3.10+
+• Database: SQLite
+• AI Intelligence: Ollama (Local Large Language Model server)
+• AI Models: Qwen 2.5, Mistral, Llama 3
+• Utilities: PDF processing, OCR integration
+
+## 8️⃣ PROCEDURE / WORKFLOW
+1. Environment Setup: Create a virtual environment (`python -m venv .venv`) and install dependencies (`pip install -r requirements.txt`).
+2. AI Setup: Ensure Ollama is running locally and required models (`qwen2.5:latest`, `mistral:latest`) are pulled.
+3. Database Initialization: Run `seed_data.py` and `generate_doctor_dataset.py` to securely create the local SQLite database and insert dummy credentials.
+4. Execution: Run `python src/main.py` to launch the multi-role desktop application.
+5. Role Workflows:
+   - Patients upload records for AI analysis and book appointments.
+   - Doctors accept appointments, view AI-generated summaries, and prescribe treatments.
+   - Government Admins monitor aggregated disease analytics and system loads.

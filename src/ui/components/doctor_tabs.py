@@ -203,9 +203,10 @@ class DoctorReportsWidget(QWidget):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "", "PDF/Image Files (*.pdf *.png *.jpg *.jpeg)")
         if file_path:
             dialog = MedibriefAnalyzerDialog(self, file_path, patient_id, record_type=r_type)
-            if dialog.exec():
-                self.load_data(patient_id)
-                self.load_graph(patient_id)
+            dialog.exec()
+            # Always reload — auto-save fires on close even without clicking Save
+            self.load_data(patient_id)
+            self.load_graph(patient_id)
 
     def load_data(self, patient_id=None):
         try:

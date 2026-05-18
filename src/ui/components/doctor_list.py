@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QScrollArea, QFrame, QGridLayout, QMessageBox, QDialog, QFormLayout, QComboBox
 )
 from PyQt6.QtCore import Qt
-from src.database import get_all_doctors, create_referral
+from src.database import get_all_doctors, create_referral, book_appointment
 
 class ReferralDialog(QDialog):
     def __init__(self, doctor_name, parent=None):
@@ -68,6 +68,57 @@ class ReferralDialog(QDialog):
             "age": self.age_input.text(),
             "gender": self.gender_combo.currentText(),
             "reason": self.reason_input.text()
+        }
+
+class BookingDialog(QDialog):
+    def __init__(self, doctor_name, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Book Appointment with {doctor_name}")
+        self.setMinimumSize(300, 200)
+        self.setStyleSheet("""
+            QDialog { background-color: white; }
+            QLabel { font-size: 14px; color: #334155; }
+            QLineEdit, QComboBox { padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; }
+            QPushButton { padding: 8px 16px; border-radius: 5px; font-weight: bold; }
+        """)
+        
+        layout = QVBoxLayout(self)
+        
+        form_layout = QFormLayout()
+        
+        self.date_input = QLineEdit()
+        self.date_input.setPlaceholderText("YYYY-MM-DD")
+        
+        import datetime
+        tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+        self.date_input.setText(str(tomorrow))
+        
+        self.time_combo = QComboBox()
+        self.time_combo.addItems(["10:00 AM", "11:00 AM", "02:00 PM", "04:00 PM"])
+        
+        form_layout.addRow("Date:", self.date_input)
+        form_layout.addRow("Time:", self.time_combo)
+        
+        layout.addLayout(form_layout)
+        layout.addStretch()
+        
+        btn_layout = QHBoxLayout()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("background-color: #94a3b8; color: white;")
+        cancel_btn.clicked.connect(self.reject)
+        
+        book_btn = QPushButton("Book")
+        book_btn.setStyleSheet("background-color: #2563eb; color: white;")
+        book_btn.clicked.connect(self.accept)
+        
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(book_btn)
+        layout.addLayout(btn_layout)
+        
+    def get_data(self):
+        return {
+            "date": self.date_input.text(),
+            "time": self.time_combo.currentText()
         }
 
 class DoctorListWidget(QWidget):
@@ -241,11 +292,21 @@ class DoctorListWidget(QWidget):
 
     def handle_action(self, doc):
         if self.mode == "find":
-            QMessageBox.information(
-                self, 
-                "Book Appointment", 
-                f"Booking request sent to {doc['full_name']}. They will contact you shortly."
-            )
+            dialog = BookingDialog(doc['full_name'], self)
+            if dialog.exec():
+                data = dialog.get_data()
+                if self.current_user_id:
+                    success = book_appointment(self.current_user_id, doc['id'], data['date'], data['time'])
+                    if success:
+                        QMessageBox.information(
+                            self, 
+                            "Appointment Requested", 
+                            f"Booking request sent to {doc['full_name']} for {data['date']} at {data['time']}.\nIt will show as 'Pending' until accepted."
+                        )
+                    else:
+                        QMessageBox.warning(self, "Error", "Could not book appointment.")
+                else:
+                    QMessageBox.warning(self, "Error", "User not logged in correctly.")
         elif self.mode == "refer":
             dialog = ReferralDialog(doc['full_name'], self)
             if dialog.exec():

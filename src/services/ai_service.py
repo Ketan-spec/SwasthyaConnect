@@ -47,9 +47,12 @@ class AIService:
         import urllib.request
         import urllib.error
         import json
+        
+        medical_rule = "CRITICAL INSTRUCTION: You are a specialized medical AI assistant. If the user asks a question that is entirely unrelated to healthcare, medicine, or their personal well-being, you MUST reply with exactly: 'I am a medical assistant. Please ask questions related to your health or the medical domain.' and refuse to answer the question.\n\n"
+        
         try:
             url = "http://localhost:11434/api/generate"
-            prompt = f"{system_prompt}\n\nUSER: {user_prompt}\nRESPONSE:"
+            prompt = f"{medical_rule}{system_prompt}\n\nUSER: {user_prompt}\nRESPONSE:"
             data = {
                 "model": model_name,
                 "prompt": prompt,
@@ -69,9 +72,12 @@ class AIService:
         import urllib.request
         import urllib.error
         import json
+        
+        medical_rule = "CRITICAL INSTRUCTION: You are a specialized medical AI assistant. If the user asks a question that is entirely unrelated to healthcare, medicine, or their personal well-being, you MUST reply with exactly: 'I am a medical assistant. Please ask questions related to your health or the medical domain.' and refuse to answer the question.\n\n"
+        
         try:
             url = "http://localhost:11434/api/generate"
-            prompt = f"{system_prompt}\n\nUSER: {user_prompt}\nRESPONSE:"
+            prompt = f"{medical_rule}{system_prompt}\n\nUSER: {user_prompt}\nRESPONSE:"
             data = {
                 "model": model_name,
                 "prompt": prompt,
