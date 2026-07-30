@@ -9,24 +9,13 @@
 
 The **AI-Powered Digital Healthcare Management & Monitoring System** is a unified digital health platform designed to serve Patients, Doctors, Hospitals, and Government Health Authorities. It aligns with the Health Data Information & Management System (HDIMS) under the Health & Family Welfare Department, Government of NCT of Delhi.
 
-## 2. Team & Technical Contributions
 
-This platform was developed collaboratively with explicit technical domain and layer mapping for each member:
 
-- **Ketan:** Local Ollama AI Server Integration, Backend Multi-modal JSON Extraction Prompts, Dynamic Dashboard Manipulation, and Hybrid OCR Engine execution.  
-  *Tech Mapping:* **Ollama Engine** (using `qwen2:0.5b`/`mistral`), **PyMuPDF (`fitz`)** for rapid native PDF text streaming, and **Tesseract OCR (`pytesseract`/`Pillow`)** fallback extraction pipeline for scanned prescription images.
-- **Vedant:** Software Architecture Control, Component Lifecycle Binding, Programmatic UI Stiches, Signal/Slot Event Pipelines, and High-fidelity Report Document Exporters.  
-  *Tech Mapping:* Core event bridges linking background asynchronous worker threads (`QThread`) directly with GUI dispatchers, and **ReportLab** dynamic vector template rendering with registered dual-weight local typography assets (Noto Sans Devanagari).
-- **Anushka:** UI/UX Design System Construction, Global Palette Scaling, Responsive Interface Architectures, Medical Visual Aesthetics, and Interactive Component Lookups.  
-  *Tech Mapping:* Modern **PyQt6** layout orchestration built around deeply responsive Qt Style Sheet (QSS) parameter styling (`src/ui/styles.py`) delivering premium glassmorphic surfaces and high-contrast clinical reading frames.
-- **Bhushan:** Relational Database Engine Operations, Multi-table Schema Structuring, Statistical Windowing Aggregations, Seeding Automation, and System Persistence Bindings.  
-  *Tech Mapping:* Native **SQLite3** cursor interactions, multi-table cascade definitions linking historical logs (`users`, `prescriptions`, `appointments`), and real-time visualization layer translations powered by **pyqtgraph** (`PlotWidget`/`BarGraphItem`).
-
-## 3. Core Problem Statement
+## 2. Core Problem Statement
 
 Healthcare data in India is currently scattered, paper-based, or siloed. Patients struggle to understand reports, and government hospitals lack transparent treatment tracking. Data is not structured for real-time monitoring or policy planning.
 
-## 4. Solution Vision
+## 3. Solution Vision
 
 To build a secure, centralized, AI-enabled healthcare platform that:
 - Consolidates patient medical data into a unified digital timeline.
@@ -35,7 +24,7 @@ To build a secure, centralized, AI-enabled healthcare platform that:
 - Provides anonymized dashboards for government monitoring.
 - Ensures ethical, consent-based data sharing.
 
-## 5. Key Features
+## 4. Key Features
 
 ### A. Patient Module
 - Unified digital health records with chronological timeline.
@@ -56,7 +45,7 @@ To build a secure, centralized, AI-enabled healthcare platform that:
 - Disease trend analysis and treatment delay monitoring.
 - Medicine demand forecasting and policy insights.
 
-## 6. Tech Stack & Implementation Mapping
+## 5. Tech Stack & Implementation Mapping
 
 **Swasthya Connect** is built on a highly modular, secure, and offline-ready technology stack. Below is the full stack mapping with corresponding project file implementations:
 
@@ -89,7 +78,7 @@ To build a secure, centralized, AI-enabled healthcare platform that:
 - **Multilingual Report Generation (PDF Export):** High-fidelity exported summary documents via ReportLab supporting localized script generation (Devanagari font support for Hindi and Marathi).  
   *Method:* `build_summary_pdf_bytes(...)` in `src/services/medibrief_pdf.py`.
 
-## 7. Project Structure
+## 6. Project Structure
 
 ```text
 Swasthya_Connect/
@@ -108,7 +97,7 @@ Swasthya_Connect/
 
 ---
 
-## 8. Getting Started
+## 7. Getting Started
 
 ### Prerequisites
 
@@ -155,14 +144,14 @@ python src/main.py
 
 ---
 
-## 9. Ethics, Privacy & Governance
+## 8. Ethics, Privacy & Governance
 
 - **Data Ownership:** Patients retain full control over their health data.
 - **Consent-Based:** Data sharing requires explicit patient approval.
 - **Anonymized:** Administrative access is restricted to anonymized, aggregated datasets.
 - **Local AI:** All medical data processing happens locally via Ollama to ensure privacy.
 
-## 10. License
+## 9. License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
