@@ -1,44 +1,45 @@
 # Swasthya Connect — Production Finalization Progress
 
-**Date:** 2026-05-12 | **Engineer:** Senior Staff AI
+**Date:** 2026-06-13 | **Engineer:** Antigravity AI Assistant
 
 ---
 
-## 🔍 FULL SYSTEM AUDIT FINDINGS
+## 🔍 FULL SYSTEM AUDIT & UPDATE STATUS
+- [x] **Credentials & Datasets Update (June 13, 2026):** Doctor and Hospital credential lists regenerated and database seeding verified.
 
 ### ✅ WORKING / CONFIRMED REAL DATA FLOW
-| Module | Feature | Status |
-|--------|---------|--------|
-| Patient | Upload Report / PDF OCR | ✅ Real |
-| Patient | AI Report Analysis (Ollama) | ✅ Real |
-| Patient | Auto-save on dialog close | ✅ Real |
-| Patient | Medical Records tab (My Records) | ✅ Real |
-| Patient | Appointments tab | ✅ Real |
-| Patient | Prescriptions tab (new table) | ✅ Real |
-| Patient | Treatment Status tab | ✅ Real |
-| Patient | Medicine Verification (CSV search + AI explain) | ✅ Real |
-| Patient | AI Chatbot (RAG-guardrailed) | ✅ Real |
-| Patient | Find Doctor + Book Appointment | ✅ Real |
-| Doctor | Appointments tab (list + mark complete) | ✅ Real |
-| Doctor | Patient Lookup + Records Timeline | ✅ Real |
-| Doctor | AI Executive Brief | ✅ Real |
-| Doctor | Treatment Tracking (log update) | ✅ Real |
-| Doctor | AI Diagnostic Copilot | ✅ Real |
-| Doctor | Refer Patient | ✅ Real |
-| Doctor | My Referrals (incoming) | ✅ Real |
-| Doctor | Profile Edit | ✅ Real |
-| Hospital | Patient Admissions | ✅ Real |
-| Hospital | Staff Management | ✅ Real |
-| Hospital | Inventory Management | ✅ Real |
-| Hospital | Ambulance Tracker | ✅ Real |
-| Hospital | Treatment Tracking | ✅ Real |
-| Hospital | Resource Overview Form (ICU / Oxygen) | ✅ Real |
-| Govt | Overview Stats Cards | ✅ Real (live DB counts) |
-| Govt | Disease Surveillance | ✅ Real (from referrals) |
-| Govt | Resource Monitor | ✅ Real (from hospital_resources) |
-| Govt | State Reports Table | ✅ Real |
-| Patient Dashboard | Disease Trend Bar Chart | ✅ Real (from report AI extraction) |
-| Patient Dashboard | Vitals Timeline (HR) | ✅ Real (from report AI extraction) |
+| Module | Feature | Status | Tech Stack / Implementation Files |
+|--------|---------|--------|-----------------------------------|
+| Patient | Upload Report / PDF OCR | ✅ Real | `pdfminer.six` \| [ocr_service.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/services/ocr_service.py) |
+| Patient | AI Report Analysis (Ollama) | ✅ Real | `Ollama API` (`qwen2`/`mistral`) \| [medibrief_service.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/services/medibrief_service.py) |
+| Patient | Auto-save on dialog close | ✅ Real | `PyQt6 (closeEvent)` \| [medibrief_dialog.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/medibrief_dialog.py) |
+| Patient | Medical Records tab (My Records) | ✅ Real | `PyQt6` + `sqlite3` \| [patient_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/patient_tabs.py) |
+| Patient | Appointments tab | ✅ Real | `PyQt6` + `sqlite3` \| [patient_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/patient_tabs.py) |
+| Patient | Prescriptions tab (new table) | ✅ Real | `PyQt6` + `sqlite3` \| [patient_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/patient_tabs.py) |
+| Patient | Treatment Status tab | ✅ Real | `PyQt6` + `sqlite3` \| [patient_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/patient_tabs.py) |
+| Patient | Medicine Verification | ✅ Real | `pandas` + `sqlite3` + `Ollama API` \| [patient_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/patient_tabs.py) |
+| Patient | AI Chatbot (RAG-guardrailed) | ✅ Real | `Ollama API` \| [chatbot.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/chatbot.py) & [ai_service.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/services/ai_service.py) |
+| Patient | Find Doctor + Book Appointment | ✅ Real | `PyQt6` + `sqlite3` \| [doctor_list.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/doctor_list.py) |
+| Doctor | Appointments tab (list & status) | ✅ Real | `PyQt6` + `sqlite3` \| [doctor_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/doctor_tabs.py) |
+| Doctor | Patient Lookup + Records Timeline | ✅ Real | `PyQt6` + `sqlite3` \| [doctor_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/doctor_tabs.py) |
+| Doctor | AI Executive Brief | ✅ Real | `Ollama API` \| [medibrief_service.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/services/medibrief_service.py) |
+| Doctor | Treatment Tracking (log update) | ✅ Real | `PyQt6` + `sqlite3` \| [doctor_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/doctor_tabs.py) |
+| Doctor | AI Diagnostic Copilot | ✅ Real | `Ollama API` \| [ai_service.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/services/ai_service.py) |
+| Doctor | Refer Patient | ✅ Real | `PyQt6` + `sqlite3` \| [doctor_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/doctor_tabs.py) |
+| Doctor | My Referrals (incoming) | ✅ Real | `PyQt6` + `sqlite3` \| [doctor_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/doctor_tabs.py) |
+| Doctor | Profile Edit | ✅ Real | `PyQt6` + `sqlite3` \| [doctor_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/doctor_tabs.py) |
+| Hospital | Patient Admissions | ✅ Real | `PyQt6` + `sqlite3` \| [hospital_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/hospital_tabs.py) |
+| Hospital | Staff Management | ✅ Real | `PyQt6` + `sqlite3` \| [hospital_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/hospital_tabs.py) |
+| Hospital | Inventory Management | ✅ Real | `PyQt6` + `sqlite3` \| [hospital_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/hospital_tabs.py) |
+| Hospital | Ambulance Tracker | ✅ Real | `PyQt6` + `sqlite3` \| [hospital_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/hospital_tabs.py) |
+| Hospital | Treatment Tracking | ✅ Real | `PyQt6` + `sqlite3` \| [hospital_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/hospital_tabs.py) |
+| Hospital | Resource Overview Form (ICU/O2) | ✅ Real | `PyQt6` + `sqlite3` \| [hospital_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/hospital_tabs.py) |
+| Govt | Overview Stats Cards | ✅ Real | `PyQt6` + `sqlite3` \| [govt_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/govt_tabs.py) |
+| Govt | Disease Surveillance | ✅ Real | `PyQt6` + `sqlite3` \| [govt_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/govt_tabs.py) |
+| Govt | Resource Monitor | ✅ Real | `PyQt6` + `sqlite3` \| [govt_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/govt_tabs.py) |
+| Govt | State Reports Table | ✅ Real | `PyQt6` + `sqlite3` \| [govt_tabs.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/components/govt_tabs.py) |
+| Patient Dashboard | Disease Trend Bar Chart | ✅ Real | `pyqtgraph` \| [patient_dashboard.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/dashboards/patient_dashboard.py) |
+| Patient Dashboard | Vitals Timeline (HR) | ✅ Real | `pyqtgraph` \| [patient_dashboard.py](file:///Users/apple/Documents/programming/mini%20project/Swasthya_Connect/src/ui/dashboards/patient_dashboard.py) |
 
 ---
 

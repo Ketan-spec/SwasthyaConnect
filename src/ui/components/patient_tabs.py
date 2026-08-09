@@ -241,12 +241,23 @@ class TreatmentStatusWidget(QWidget):
         self.user_id = user_id
         layout = QVBoxLayout(self)
         
+        # Header
+        header_layout = QHBoxLayout()
         title = QLabel("My Treatment Tracking")
         title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
-        layout.addWidget(title)
+        header_layout.addWidget(title)
         
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 6px 14px; border-radius: 5px; font-weight: bold;")
+        refresh_btn.clicked.connect(self.load_data)
+        header_layout.addStretch()
+        header_layout.addWidget(refresh_btn)
+        layout.addLayout(header_layout)
+        
+        # Current status banner
         self.current_status_label = QLabel("Current Status: None")
-        self.current_status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background-color: #f1f5f9; padding: 10px; border-radius: 5px;")
+        self.current_status_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b; background-color: #f1f5f9; padding: 12px; border-radius: 7px; border-left: 5px solid #94a3b8;")
+        self.current_status_label.setWordWrap(True)
         layout.addWidget(self.current_status_label)
         
         history_title = QLabel("Treatment History")
@@ -255,8 +266,9 @@ class TreatmentStatusWidget(QWidget):
         
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Date/Time", "Status", "Notes", "Updated By", "Role"])
+        self.table.setHorizontalHeaderLabels(["Date/Time", "Status", "Notes", "Updated By (Doctor)", "Role"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setAlternatingRowColors(True)
         layout.addWidget(self.table)
         
         self.load_data()
@@ -266,23 +278,51 @@ class TreatmentStatusWidget(QWidget):
             updates = get_treatment_updates(self.user_id)
             if updates:
                 latest = updates[0]
-                self.current_status_label.setText(f"Current Status: {latest['status']} (Updated by {latest['updated_by_name']}, {latest['updated_by_role']})\nNotes: {latest['notes']}")
-                if latest['status'].lower() in ['completed', 'discharged']:
-                    self.current_status_label.setStyleSheet(self.current_status_label.styleSheet() + "border-left: 5px solid #10b981;")
-                else:
-                    self.current_status_label.setStyleSheet(self.current_status_label.styleSheet() + "border-left: 5px solid #3b82f6;")
+                status = latest['status']
+                color_map = {
+                    'completed': '#10b981', 'discharged': '#10b981',
+                    'in progress': '#3b82f6', 'delayed': '#ef4444',
+                    'not started': '#94a3b8'
+                }
+                color = color_map.get(status.lower(), '#94a3b8')
+                self.current_status_label.setText(
+                    f"Current Status: {status}\n"
+                    f"Last updated by: Dr. {latest['updated_by_name']}\n"
+                    f"Notes: {latest['notes']}"
+                )
+                self.current_status_label.setStyleSheet(
+                    f"font-size: 15px; font-weight: bold; color: #1e293b; "
+                    f"background-color: #f1f5f9; padding: 12px; border-radius: 7px; "
+                    f"border-left: 5px solid {color};"
+                )
             else:
-                self.current_status_label.setText("No active or historical treatments found.")
+                self.current_status_label.setText("No active or historical treatments found. Ask your doctor to log a treatment update.")
+                self.current_status_label.setStyleSheet(
+                    "font-size: 14px; color: #64748b; background-color: #f8fafc; "
+                    "padding: 12px; border-radius: 7px; border-left: 5px solid #cbd5e1;"
+                )
                 
             self.table.setRowCount(len(updates))
             for r, row in enumerate(updates):
-                self.table.setItem(r, 0, QTableWidgetItem(str(row['timestamp'])))
-                self.table.setItem(r, 1, QTableWidgetItem(str(row['status'])))
+                ts = str(row['timestamp'])[:16] if row['timestamp'] else ''
+                self.table.setItem(r, 0, QTableWidgetItem(ts))
+                
+                status_item = QTableWidgetItem(str(row['status']))
+                status_val = row['status'].lower()
+                if 'complete' in status_val or 'discharged' in status_val:
+                    status_item.setForeground(Qt.GlobalColor.darkGreen)
+                elif 'progress' in status_val:
+                    status_item.setForeground(Qt.GlobalColor.darkBlue)
+                elif 'delay' in status_val:
+                    status_item.setForeground(Qt.GlobalColor.red)
+                self.table.setItem(r, 1, status_item)
+                
                 self.table.setItem(r, 2, QTableWidgetItem(str(row['notes'])))
-                self.table.setItem(r, 3, QTableWidgetItem(str(row['updated_by_name'])))
-                self.table.setItem(r, 4, QTableWidgetItem(str(row['updated_by_role'])))
+                self.table.setItem(r, 3, QTableWidgetItem(f"Dr. {row['updated_by_name']}"))
+                self.table.setItem(r, 4, QTableWidgetItem(str(row['updated_by_role']).title()))
         except Exception as e:
-            pass
+            print(f"Error loading treatment updates: {e}")
+
 
 
 class MedicineVerificationWidget(QWidget):
@@ -392,7 +432,7 @@ class MedicineVerificationWidget(QWidget):
         # Start AI Streaming
         self.first_chunk = True
         self.current_response_text = ""
-        self.worker = AIAssistantWorker(system_prompt, question, "qwen2:0.5b")
+        self.worker = AIAssistantWorker(system_prompt, question, "qwen2.5:3b")
         self.worker.chunk_received.connect(self.on_ai_chunk)
         self.worker.finished_stream.connect(self.on_ai_finished)
         self.worker.start()

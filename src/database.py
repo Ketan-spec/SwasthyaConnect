@@ -2,6 +2,7 @@ import sqlite3
 import os
 import datetime
 import hashlib
+from src import blockchain
 
 # Use absolute path to ensure DB is always found regardless of CWD
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -166,6 +167,75 @@ def initialize_database():
         )
     ''')
     
+    # New Table: Approved Medicines
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS approved_medicines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            price TEXT,
+            is_discontinued INTEGER,
+            manufacturer_name TEXT,
+            type TEXT,
+            pack_size_label TEXT,
+            short_composition1 TEXT,
+            short_composition2 TEXT
+        )
+    ''')
+    
+    # New Table: Doctor Availability
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS doctor_availability (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            doctor_id INTEGER NOT NULL,
+            date TEXT NOT NULL,          -- ISO YYYY-MM-DD
+            time_slot TEXT NOT NULL,     -- e.g., "09:00-10:00"
+            is_booked INTEGER DEFAULT 0,
+            FOREIGN KEY (doctor_id) REFERENCES users(id)
+        )
+    ''')
+    
+    # Create Patient Vitals Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS patient_vitals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            vital_type TEXT NOT NULL,
+            value TEXT NOT NULL,
+            unit TEXT,
+            recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            source_record_id INTEGER,
+            FOREIGN KEY (patient_id) REFERENCES users (id),
+            FOREIGN KEY (source_record_id) REFERENCES medical_records (id)
+        )
+    ''')
+    
+    # Create Clinical Conditions Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS clinical_conditions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            condition_name TEXT NOT NULL,
+            status TEXT DEFAULT 'Active',
+            diagnosed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            source_record_id INTEGER,
+            FOREIGN KEY (patient_id) REFERENCES users (id),
+            FOREIGN KEY (source_record_id) REFERENCES medical_records (id)
+        )
+    ''')
+    
+    # Create Patient Symptoms Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS patient_symptoms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            symptom_name TEXT NOT NULL,
+            recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            source_record_id INTEGER,
+            FOREIGN KEY (patient_id) REFERENCES users (id),
+            FOREIGN KEY (source_record_id) REFERENCES medical_records (id)
+        )
+    ''')
+    
     print("Database initialized (Clean Slate - v1).")
     conn.commit()
     conn.close()
@@ -174,11 +244,16 @@ def reset_database():
     """Drops all tables and re-initializes the database to a blank state."""
     conn = sqlite3.connect(DB_NAME, timeout=10.0)
     cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS doctor_availability")
+    cursor.execute("DROP TABLE IF EXISTS approved_medicines")
     cursor.execute("DROP TABLE IF EXISTS hospital_ambulances")
     cursor.execute("DROP TABLE IF EXISTS hospital_inventory")
     cursor.execute("DROP TABLE IF EXISTS hospital_staff")
     cursor.execute("DROP TABLE IF EXISTS treatment_tracking")
     cursor.execute("DROP TABLE IF EXISTS hospital_admissions")
+    cursor.execute("DROP TABLE IF EXISTS patient_symptoms")
+    cursor.execute("DROP TABLE IF EXISTS clinical_conditions")
+    cursor.execute("DROP TABLE IF EXISTS patient_vitals")
     cursor.execute("DROP TABLE IF EXISTS medical_records")
     cursor.execute("DROP TABLE IF EXISTS appointments")
     cursor.execute("DROP TABLE IF EXISTS hospital_resources")
@@ -353,19 +428,13 @@ def get_govt_stats():
         cursor.execute("SELECT COUNT(*) FROM referrals")
         stats['recent_referrals'] = cursor.fetchone()[0]
 
-        # Disease Trends by State
-        # Join referrals with users (referred_to_id) to get the Doctor's State
-        # OR better: Use the Patient's state? 
-        # Requirement: "data should be shown in state wise"
-        # We'll use the Referring Doctor's State as a proxy for Patient's location for now, 
-        # or ideally we should have stored Patient State in Referral. 
-        # Let's use the Referring User's State (u.state)
-        
+        # Disease Trends by State from actual clinical diagnoses
         query = '''
-            SELECT u.state, r.reason, COUNT(*) as count
-            FROM referrals r
-            JOIN users u ON r.referred_by_id = u.id
-            GROUP BY u.state, r.reason
+            SELECT u.state, cc.condition_name as reason, COUNT(*) as count
+            FROM clinical_conditions cc
+            JOIN users u ON cc.patient_id = u.id
+            WHERE u.state IS NOT NULL AND u.state != ''
+            GROUP BY u.state, cc.condition_name
             ORDER BY u.state, count DESC
         '''
         cursor.execute(query)
@@ -458,10 +527,16 @@ def add_medical_record(patient_id, record_type, title, description, file_path=No
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (patient_id, record_type, title, description, file_path, summary_json, language))
         conn.commit()
-        return True
+        record_id = cursor.lastrowid
+        try:
+            blockchain.log_event("MEDICAL_REPORT_UPLOAD", "medical_report", record_id, patient_id, patient_id)
+        except Exception as blockchain_e:
+            print(f"Blockchain Error: {blockchain_e}")
+            
+        return record_id
     except Exception as e:
         print(f"Error adding medical record: {e}")
-        return False
+        return None
     finally:
         conn.close()
 
@@ -477,6 +552,12 @@ def add_treatment_update(patient_id, updated_by_id, status, notes):
         ''', (patient_id, updated_by_id, status, notes))
         
         conn.commit()
+        record_id = cursor.lastrowid
+        try:
+            blockchain.log_event("TREATMENT_STATUS_UPDATED", "treatment", record_id, updated_by_id, patient_id)
+        except Exception as blockchain_e:
+            print(f"Blockchain Error: {blockchain_e}")
+            
         conn.close()
         return True
     except Exception as e:
@@ -529,38 +610,30 @@ def get_patient_dashboard_stats(patient_id):
     return stats
 
 def get_patient_analytics(patient_id):
-    """Parses past medical_records JSON to extract quantitative abnormal test parameters over time."""
-    import json
-    data_points = {} # format: {'Hemoglobin': [{'date': '2023-10-01', 'value': 12.0}], ...}
+    """Fetches quantitative vital signs data for charting."""
+    data_points = {} # format: {'heart_rate': [{'date': '2023-10-01', 'value': 12.0}], ...}
     
     try:
         conn = sqlite3.connect(DB_NAME, timeout=10.0)
         cursor = conn.cursor()
-        cursor.execute("SELECT date_added, summary_json FROM medical_records WHERE patient_id = ? AND record_type IN ('Report', 'Prescription') ORDER BY date_added ASC", (patient_id,))
+        
+        cursor.execute('''
+            SELECT vital_type, value, unit, date(recorded_at) 
+            FROM patient_vitals 
+            WHERE patient_id = ? 
+            ORDER BY recorded_at ASC
+        ''', (patient_id,))
         rows = cursor.fetchall()
         conn.close()
         
-        for date_str, json_str  in rows:
-            if not json_str: continue
-            try:
-                summary = json.loads(json_str)
-                date_only = date_str.split(" ")[0]
-                
-                abnormals = summary.get("abnormal_values_explained", [])
-                for abn in abnormals:
-                    if isinstance(abn, dict):
-                        test = abn.get("test", "Unknown")
-                        val_str = abn.get("value", "")
-                        
-                        import re
-                        match = re.search(r"[-+]?\d*\.\d+|\d+", str(val_str))
-                        if match:
-                            val = float(match.group())
-                            if test not in data_points:
-                                data_points[test] = []
-                            data_points[test].append({"date": date_only, "value": val, "unit": abn.get("unit", "")})
-            except Exception as parse_err:
-                pass
+        for v_type, val_str, unit, date_only in rows:
+            import re
+            match = re.search(r"[-+]?\d*\.\d+|\d+", str(val_str))
+            if match:
+                val = float(match.group())
+                if v_type not in data_points:
+                    data_points[v_type] = []
+                data_points[v_type].append({"date": date_only, "value": val, "unit": unit})
                 
         return data_points
     except Exception as e:
@@ -575,12 +648,12 @@ def get_health_trends_by_date():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
-        # We will track patient visits (appointments) per day
+        # Track disease outbreaks over time
         query = '''
-            SELECT date, COUNT(*) as count 
-            FROM appointments 
-            GROUP BY date 
-            ORDER BY date ASC
+            SELECT date(diagnosed_at) as date, COUNT(*) as count 
+            FROM clinical_conditions 
+            GROUP BY date(diagnosed_at) 
+            ORDER BY date(diagnosed_at) ASC
         '''
         cursor.execute(query)
         rows = cursor.fetchall()
@@ -589,15 +662,7 @@ def get_health_trends_by_date():
             if row['date']:
                 trends.append({'date': row['date'], 'value': row['count']})
                 
-        # If no real appointments, return some generated data for visual context
-        if not trends or len(trends) < 2:
-            import datetime
-            import random
-            base = datetime.date.today() - datetime.timedelta(days=30)
-            for i in range(30):
-                d = base + datetime.timedelta(days=i)
-                trends.append({'date': d.strftime('%Y-%m-%d'), 'value': random.randint(10, 50)})
-                
+        # If no real data, return empty list instead of mocking it
         conn.close()
         return trends
     except Exception as e:
@@ -647,16 +712,14 @@ def book_appointment(patient_id, doctor_id, date_str, time_str):
         return False
 
 def get_aggregated_patient_data(patient_id):
-    """Parses all medical_records for a patient and aggregates dynamic insights for the dashboard."""
-    import json
+    """Fetches structured data from relational tables for the patient dashboard."""
     data = {
-        "conditions": set(),
-        "symptoms": set(),
+        "conditions": [],
+        "symptoms": [],
         "key_findings": [],
         "vital_signs": [],
         "abnormal_count": 0,
         "recent_summaries": [],
-        "risk_score": 100, # Starts at 100, goes down based on abnormals
         "has_data": False,
         "record_count": 0
     }
@@ -664,61 +727,54 @@ def get_aggregated_patient_data(patient_id):
     try:
         conn = sqlite3.connect(DB_NAME, timeout=10.0)
         cursor = conn.cursor()
-        cursor.execute("SELECT summary_json FROM medical_records WHERE patient_id = ? AND record_type IN ('Report', 'Prescription') ORDER BY date_added DESC", (patient_id,))
-        rows = cursor.fetchall()
-        conn.close()
         
-        data["record_count"] = len(rows)
-        if len(rows) > 0:
+        cursor.execute("SELECT COUNT(*) FROM medical_records WHERE patient_id = ?", (patient_id,))
+        record_count = cursor.fetchone()[0]
+        data["record_count"] = record_count
+        if record_count > 0:
             data["has_data"] = True
             
-        for row in rows:
-            if not row[0]: continue
+        # Conditions
+        cursor.execute("SELECT DISTINCT condition_name FROM clinical_conditions WHERE patient_id = ?", (patient_id,))
+        data["conditions"] = [row[0] for row in cursor.fetchall() if row[0] and len(row[0]) < 40]
+        
+        # Symptoms
+        cursor.execute("SELECT DISTINCT symptom_name FROM patient_symptoms WHERE patient_id = ?", (patient_id,))
+        data["symptoms"] = [row[0] for row in cursor.fetchall() if row[0] and len(row[0]) < 20]
+        
+        # Vitals
+        cursor.execute("SELECT vital_type, value, unit FROM patient_vitals WHERE patient_id = ? ORDER BY recorded_at DESC LIMIT 10", (patient_id,))
+        vitals_fetched = cursor.fetchall()
+        for v_type, val, unit in vitals_fetched:
+            unit_str = f" {unit}" if unit else ""
+            data["vital_signs"].append(f"{v_type.replace('_', ' ').title()}: {val}{unit_str}")
+            
+        # Check abnormals (Simple heuristics based on type, since we don't store abnormal flag yet)
+        for v_type, val, unit in vitals_fetched:
             try:
-                summary = json.loads(row[0])
-                
-                # Active Conditions (from impressions)
-                impressions = summary.get("impression_in_simple_words", [])
-                for imp in impressions:
-                    if len(imp) < 40: # Avoid long paragraphs
-                        data["conditions"].add(imp)
-                        
-                # New rich extraction: key findings and vitals
-                findings = summary.get("key_findings", [])
-                if findings:
-                    data["key_findings"].extend(findings)
-                    
-                vitals = summary.get("vital_signs", [])
-                if vitals:
-                    data["vital_signs"].extend(vitals)
-                        
-                # Abnormalities & Symptoms
-                abnormals = summary.get("abnormal_values_explained", [])
-                for abn in abnormals:
-                    if isinstance(abn, dict):
-                        data["abnormal_count"] += 1
-                        test_name = abn.get("test", "")
-                        if len(test_name) < 20:
-                            data["symptoms"].add(test_name)
-                    else:
-                        data["abnormal_count"] += 1
-                        
-                # Doctor Summary (from overall summary bullets)
-                bullets = summary.get("overall_summary_bullets", [])
-                if bullets:
-                    data["recent_summaries"].extend(bullets[:2]) # take top 2 from each report
-                    
-            except Exception as e:
+                import re
+                match = re.search(r"[-+]?\d*\.\d+|\d+", str(val))
+                if match:
+                    numeric_val = float(match.group())
+                    if v_type == 'heart_rate' and (numeric_val > 100 or numeric_val < 60): data["abnormal_count"] += 1
+                    elif v_type == 'blood_pressure' and (numeric_val > 140): data["abnormal_count"] += 1 # simplistic sys check
+                    elif v_type == 'spO2' and numeric_val < 95: data["abnormal_count"] += 1
+            except Exception:
                 pass
                 
-        # Calculate Mock Risk Score based on abnormals
-        penalty = min(data["abnormal_count"] * 5, 60)
-        data["risk_score"] = max(100 - penalty, 10)
+        # Recent Summaries (Fallback to JSON for this specific textual field since we didn't normalize "summary bullets")
+        cursor.execute("SELECT summary_json FROM medical_records WHERE patient_id = ? AND record_type IN ('Report', 'Prescription') ORDER BY date_added DESC LIMIT 3", (patient_id,))
+        import json
+        for row in cursor.fetchall():
+            if row[0]:
+                try:
+                    summary = json.loads(row[0])
+                    bullets = summary.get("overall_summary_bullets", [])
+                    if bullets: data["recent_summaries"].extend(bullets[:2])
+                except Exception:
+                    pass
         
-        # Convert sets to lists
-        data["conditions"] = list(data["conditions"])
-        data["symptoms"] = list(data["symptoms"])
-        
+        conn.close()
         return data
     except Exception as e:
         print(f"Error aggregating patient data: {e}")
@@ -740,17 +796,33 @@ def add_past_appointment(patient_id, date_str, source_note="Extracted from repor
         return False
 
 def add_prescription_entry(patient_id, medicine_name, dosage=None, frequency=None, duration=None, source_record_id=None):
-    """Inserts a single prescription medicine row linked to a patient."""
+    """Inserts a single prescription medicine row linked to a patient, preventing duplicates."""
     try:
         if not medicine_name or str(medicine_name).lower() in ("null", "none", ""):
             return False
         conn = sqlite3.connect(DB_NAME, timeout=10.0)
         cursor = conn.cursor()
+        
+        # Check for duplicate in the last 30 days
+        cursor.execute('''
+            SELECT id FROM prescriptions 
+            WHERE patient_id = ? AND LOWER(medicine_name) = ? AND date_added > datetime('now', '-30 days')
+        ''', (patient_id, medicine_name.lower()))
+        if cursor.fetchone():
+            conn.close()
+            return False # Duplicate skipped
+            
         cursor.execute('''
             INSERT INTO prescriptions (patient_id, medicine_name, dosage, frequency, duration, source_record_id)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (patient_id, medicine_name, dosage, frequency, duration, source_record_id))
         conn.commit()
+        record_id = cursor.lastrowid
+        try:
+            blockchain.log_event("PRESCRIPTION_CREATED", "prescription", record_id, patient_id, patient_id)
+        except Exception as blockchain_e:
+            print(f"Blockchain Error: {blockchain_e}")
+            
         conn.close()
         return True
     except Exception as e:
@@ -788,65 +860,116 @@ def get_patient_all_medicine_names(patient_id):
         return []
 
 def get_patient_disease_trend(patient_id):
-    """Parses all summary_json and returns {diagnosis: count} dict for the dashboard trend chart."""
-    import json
+    """Parses all clinical_conditions and returns {condition_name: count} dict for the dashboard trend chart."""
     trend = {}
     try:
         conn = sqlite3.connect(DB_NAME, timeout=10.0)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT summary_json FROM medical_records WHERE patient_id = ? AND summary_json IS NOT NULL ORDER BY date_added DESC",
+            "SELECT condition_name, COUNT(*) as cnt FROM clinical_conditions WHERE patient_id = ? GROUP BY condition_name ORDER BY cnt DESC",
             (patient_id,)
         )
         rows = cursor.fetchall()
         conn.close()
         for row in rows:
-            if not row[0]: continue
-            try:
-                obj = json.loads(row[0])
-                # From new schema
-                for d in obj.get("diagnosis", []):
-                    if d and len(str(d)) < 50:
-                        trend[d] = trend.get(d, 0) + 1
-                # From legacy schema
-                for imp in obj.get("impression_in_simple_words", []):
-                    if imp and len(str(imp)) < 50:
-                        trend[imp] = trend.get(imp, 0) + 1
-            except Exception:
-                pass
+            if row[0] and len(str(row[0])) < 50:
+                trend[row[0]] = row[1]
         return trend
     except Exception as e:
         print(f"Error building disease trend: {e}")
         return trend
 
 def get_patient_vitals_timeline(patient_id):
-    """Returns a list of {date, blood_pressure, heart_rate, spO2} from all uploaded reports."""
-    import json
+    """Returns a list of {date, blood_pressure, heart_rate, spO2} from the patient_vitals table."""
     timeline = []
     try:
         conn = sqlite3.connect(DB_NAME, timeout=10.0)
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT date_added, summary_json FROM medical_records WHERE patient_id = ? AND summary_json IS NOT NULL ORDER BY date_added ASC",
-            (patient_id,)
-        )
+        cursor.execute('''
+            SELECT date(recorded_at) as date_only, source_record_id, vital_type, value
+            FROM patient_vitals
+            WHERE patient_id = ?
+            ORDER BY recorded_at ASC
+        ''', (patient_id,))
         rows = cursor.fetchall()
         conn.close()
-        for date_added, raw_json in rows:
-            if not raw_json: continue
-            try:
-                obj = json.loads(raw_json)
-                vitals = obj.get("vitals", {})
-                if vitals and any(vitals.values()):
-                    timeline.append({
-                        "date": date_added.split(" ")[0] if date_added else "",
-                        "blood_pressure": vitals.get("blood_pressure"),
-                        "heart_rate": vitals.get("heart_rate"),
-                        "spO2": vitals.get("spO2"),
-                    })
-            except Exception:
-                pass
-        return timeline
+        
+        record_map = {}
+        for date_only, source_record_id, vital_type, value in rows:
+            if source_record_id not in record_map:
+                record_map[source_record_id] = {"date": date_only, "blood_pressure": None, "heart_rate": None, "spO2": None}
+            
+            vt = str(vital_type).lower().replace(" ", "_")
+            if vt in ("blood_pressure", "bp"):
+                record_map[source_record_id]["blood_pressure"] = value
+            elif vt in ("heart_rate", "hr"):
+                record_map[source_record_id]["heart_rate"] = value
+            elif vt in ("spo2", "oxygen"):
+                record_map[source_record_id]["spO2"] = value
+                
+        sorted_records = sorted(record_map.values(), key=lambda x: x["date"])
+        return sorted_records
     except Exception as e:
         print(f"Error building vitals timeline: {e}")
+        return []
+
+def add_patient_vital(patient_id, vital_type, value, unit, source_record_id):
+    """Inserts a patient vital entry."""
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO patient_vitals (patient_id, vital_type, value, unit, source_record_id)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (patient_id, vital_type, value, unit, source_record_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error adding patient vital: {e}")
+        return False
+
+def add_clinical_condition(patient_id, condition_name, status, source_record_id):
+    """Inserts an active/historical clinical condition."""
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO clinical_conditions (patient_id, condition_name, status, source_record_id)
+            VALUES (?, ?, ?, ?)
+        ''', (patient_id, condition_name, status, source_record_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error adding clinical condition: {e}")
+        return False
+
+def add_patient_symptom(patient_id, symptom_name, source_record_id):
+    """Inserts a patient symptom entry."""
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO patient_symptoms (patient_id, symptom_name, source_record_id)
+            VALUES (?, ?, ?)
+        ''', (patient_id, symptom_name, source_record_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error adding patient symptom: {e}")
+        return False
+
+def get_patient_symptoms_history(patient_id):
+    """Returns a list of symptoms and their recorded date from patient_symptoms table."""
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute("SELECT symptom_name, recorded_at FROM patient_symptoms WHERE patient_id = ? ORDER BY recorded_at ASC", (patient_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [{"symptom": r[0], "date": r[1]} for r in rows]
+    except Exception as e:
+        print(f"Error fetching symptoms history: {e}")
         return []

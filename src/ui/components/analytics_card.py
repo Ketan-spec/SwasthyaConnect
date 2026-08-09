@@ -156,11 +156,64 @@ class InteractiveAnalyticsWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        title = QLabel("Health Analytics — Referral Reasons Distribution")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: black; margin-bottom: 10px;")
-        layout.addWidget(title)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("border:none; background: transparent;")
+        
+        container = QWidget()
+        cont_layout = QVBoxLayout(container)
 
-        self._build_pie_chart(layout)
+        title1 = QLabel("Health Analytics — Referral Reasons Distribution")
+        title1.setStyleSheet("font-size: 16px; font-weight: bold; color: black; margin-bottom: 10px;")
+        cont_layout.addWidget(title1)
+
+        self._build_pie_chart(cont_layout)
+        
+        title2 = QLabel("Epidemiological Trends — Outbreaks Over Time")
+        title2.setStyleSheet("font-size: 16px; font-weight: bold; color: black; margin-top: 30px; margin-bottom: 10px;")
+        cont_layout.addWidget(title2)
+        
+        self._build_line_chart(cont_layout)
+        
+        cont_layout.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+
+    def _build_line_chart(self, layout):
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+        from src.database import get_health_trends_by_date
+        
+        trends = get_health_trends_by_date()
+        
+        if not trends:
+            lbl = QLabel("No longitudinal data available for time-series analysis.")
+            lbl.setStyleSheet("color: #64748b; font-style: italic;")
+            layout.addWidget(lbl)
+            return
+            
+        dates = [t['date'] for t in trends]
+        counts = [t['value'] for t in trends]
+        
+        fig = Figure(figsize=(7, 4), facecolor="white")
+        ax = fig.add_subplot(111)
+        
+        ax.plot(dates, counts, marker='o', linestyle='-', color='#ef4444', linewidth=2, markersize=6)
+        
+        ax.set_title("Disease Diagnoses Over Time", fontsize=12, fontweight="bold", color="#1e293b", pad=12)
+        ax.set_ylabel("Number of Diagnoses", fontsize=10, color="#64748b")
+        ax.set_xlabel("Date", fontsize=10, color="#64748b")
+        
+        ax.grid(True, linestyle='--', alpha=0.5)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        fig.autofmt_xdate(rotation=45)
+        fig.tight_layout()
+        
+        canvas = FigureCanvas(fig)
+        canvas.setMinimumHeight(350)
+        layout.addWidget(canvas)
 
     def _build_pie_chart(self, layout):
         import sqlite3, os
@@ -243,9 +296,6 @@ class InteractiveAnalyticsWidget(QWidget):
             title_fontsize=10,
             frameon=False,
         )
-
-        ax.set_title("Referral Reason Breakdown", fontsize=14,
-                     fontweight="bold", color="#1e293b", pad=12)
 
         fig.tight_layout()
 

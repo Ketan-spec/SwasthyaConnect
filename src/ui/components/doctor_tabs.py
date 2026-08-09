@@ -290,7 +290,7 @@ class DoctorReportsWidget(QWidget):
         system = "You are an Executive AI Copilot for a Doctor. Read all the following patient timeline JSON outputs, treatments and vitals. Synthesize them into a highly concise 1-paragraph Medical Brief and clearly list 2 short-term predicted risks or next steps. Do not babble."
         
         from src.ui.components.chatbot import AIAssistantWorker
-        self.ai_worker = AIAssistantWorker(system, f"Patient Data:\n{context_str}", "qwen2:0.5b")
+        self.ai_worker = AIAssistantWorker(system, f"Patient Data:\n{context_str}", "qwen2.5:3b")
         self.ai_worker.chunk_received.connect(self.on_ai_chunk)
         self.ai_worker.finished_stream.connect(self.on_ai_finished)
         self.ai_worker.start()
@@ -379,31 +379,55 @@ class DoctorTreatmentWidget(QWidget):
         title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e40af;")
         layout.addWidget(title)
         
-        # Form
-        form_layout = QHBoxLayout()
+        desc = QLabel("Log a treatment update below. Notes are visible to the patient in their Treatment Status tab.")
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #64748b; font-size: 13px; margin-bottom: 5px;")
+        layout.addWidget(desc)
+        
+        # --- Log Update Form ---
+        form_frame = QFrame()
+        form_frame.setStyleSheet("QFrame { background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px; }")
+        form_layout = QHBoxLayout(form_frame)
+        form_layout.setContentsMargins(10, 8, 10, 8)
+        
         self.patient_combo = QComboBox()
+        self.patient_combo.setMinimumWidth(200)
         self.status_combo = QComboBox()
         self.status_combo.addItems(["Not started", "In progress", "Delayed", "Completed"])
         self.notes_input = QLineEdit()
-        self.notes_input.setPlaceholderText("Treatment Notes / Diagnosis")
+        self.notes_input.setPlaceholderText("Treatment Notes / Diagnosis (visible to patient)")
+        self.notes_input.setMinimumWidth(220)
         
         update_btn = QPushButton("Log Update")
-        update_btn.setStyleSheet("background-color: #1e40af; color: white; padding: 5px 15px; border-radius: 4px; font-weight: bold;")
+        update_btn.setStyleSheet("background-color: #1e40af; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
         update_btn.clicked.connect(self.log_update)
         
+        form_layout.addWidget(QLabel("Patient:"))
         form_layout.addWidget(self.patient_combo)
+        form_layout.addWidget(QLabel("Status:"))
         form_layout.addWidget(self.status_combo)
         form_layout.addWidget(self.notes_input)
         form_layout.addWidget(update_btn)
-        layout.addLayout(form_layout)
+        layout.addWidget(form_frame)
         
         self.load_patients()
         
-        # Table
+        # --- Summary Stats ---
+        self.stats_label = QLabel("")
+        self.stats_label.setStyleSheet("font-size: 13px; color: #374151; background: #ecfdf5; padding: 8px; border-radius: 6px; margin-top: 6px;")
+        self.stats_label.setWordWrap(True)
+        layout.addWidget(self.stats_label)
+        
+        # --- History Table ---
+        history_title = QLabel("Treatment History (All Patients)")
+        history_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e40af; margin-top: 8px;")
+        layout.addWidget(history_title)
+        
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Date/Time", "Patient", "Status", "Notes"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Date/Time", "Patient", "Status", "Notes", "Total Updates"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setAlternatingRowColors(True)
         layout.addWidget(self.table)
         
         self.load_data()
@@ -415,8 +439,10 @@ class DoctorTreatmentWidget(QWidget):
             c.execute("SELECT id, full_name, unique_id FROM users WHERE role = 'patient'")
             self.patients = c.fetchall()
             conn.close()
+            self.patient_combo.clear()
             for p in self.patients:
-                self.patient_combo.addItem(f"{p[1]} ({p[2]})", p[0])
+                label = f"{p[1]} ({p[2]})" if p[2] else p[1]
+                self.patient_combo.addItem(label, p[0])
         except Exception as e:
             pass
 
@@ -424,33 +450,70 @@ class DoctorTreatmentWidget(QWidget):
         try:
             conn = sqlite3.connect(DB_NAME, timeout=10.0)
             c = conn.cursor()
-            query = '''
-                SELECT t.timestamp, u.full_name, t.status, t.notes
+            c.execute('''
+                SELECT t.timestamp, u.full_name, t.status, t.notes, t.patient_id
                 FROM treatment_tracking t
                 JOIN users u ON t.patient_id = u.id
                 WHERE t.updated_by_id = ?
                 ORDER BY t.timestamp DESC
-            '''
-            c.execute(query, (self.user_id,))
+            ''', (self.user_id,))
             rows = c.fetchall()
+
+            c.execute('''
+                SELECT patient_id, COUNT(*) FROM treatment_tracking
+                WHERE updated_by_id = ? GROUP BY patient_id
+            ''', (self.user_id,))
+            count_map = {r[0]: r[1] for r in c.fetchall()}
+
+            c.execute('''
+                SELECT COUNT(DISTINCT patient_id) FROM treatment_tracking
+                WHERE updated_by_id = ? AND status = "Completed"
+            ''', (self.user_id,))
+            completed_count = c.fetchone()[0] or 0
             conn.close()
+            
+            self.stats_label.setText(
+                f"Summary — Patients treated: {len(count_map)}  |  "
+                f"Total updates logged: {len(rows)}  |  "
+                f"Completed treatments: {completed_count}"
+            )
             
             self.table.setRowCount(len(rows))
             for r, row in enumerate(rows):
-                for c, val in enumerate(row):
-                    self.table.setItem(r, c, QTableWidgetItem(str(val)))
+                ts = str(row[0])[:16] if row[0] else ""
+                self.table.setItem(r, 0, QTableWidgetItem(ts))
+                self.table.setItem(r, 1, QTableWidgetItem(str(row[1])))
+                status_item = QTableWidgetItem(str(row[2]))
+                if row[2] == "Completed":
+                    status_item.setForeground(Qt.GlobalColor.darkGreen)
+                elif row[2] == "In progress":
+                    status_item.setForeground(Qt.GlobalColor.darkBlue)
+                elif row[2] == "Delayed":
+                    status_item.setForeground(Qt.GlobalColor.red)
+                self.table.setItem(r, 2, status_item)
+                self.table.setItem(r, 3, QTableWidgetItem(str(row[3])))
+                self.table.setItem(r, 4, QTableWidgetItem(str(count_map.get(row[4], 1))))
         except Exception as e:
-            pass
+            print(f"Error loading treatment data: {e}")
 
     def log_update(self):
         from src.database import add_treatment_update
         patient_id = self.patient_combo.currentData()
         status = self.status_combo.currentText()
         notes = self.notes_input.text().strip()
-        if patient_id and notes:
-            if add_treatment_update(patient_id, self.user_id, status, notes):
-                self.notes_input.clear()
-                self.load_data()
+        if not patient_id:
+            QMessageBox.warning(self, "Error", "Please select a patient.")
+            return
+        if not notes:
+            QMessageBox.warning(self, "Error", "Please enter treatment notes (visible to patient).")
+            return
+        if add_treatment_update(patient_id, self.user_id, status, notes):
+            self.notes_input.clear()
+            self.load_data()
+            QMessageBox.information(self, "Updated", "Treatment update logged. Patient will see it immediately.")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to log update.")
+
 
 class DoctorDiagnosticCopilotWidget(QWidget):
     def __init__(self, user_id):
@@ -494,7 +557,7 @@ class DoctorDiagnosticCopilotWidget(QWidget):
         
         system_prompt = "You are an expert AI clinical diagnostic copilot for a doctor. Analyze the symptoms provided, suggest potential differential diagnoses, recommend lab tests, and point out red flags. Be highly professional and clinical."
         
-        self.worker = AIAssistantWorker(system_prompt, q, "qwen2:0.5b")
+        self.worker = AIAssistantWorker(system_prompt, q, "qwen2.5:3b")
         self.worker.finished.connect(self.on_answer)
         self.worker.start()
 

@@ -9,6 +9,7 @@ from src.ui.dashboards.doctor_dashboard import DoctorDashboard
 from src.ui.dashboards.hospital_dashboard import HospitalDashboard
 from src.ui.dashboards.govt_dashboard import GovtDashboard
 from src.ui.styles import LOGIN_STYLES
+from src.ui.components.developer_panel import DeveloperBlockchainPanel, DEVELOPER_PASSWORD
 
 class LoginWindow(QWidget):
     def __init__(self):
@@ -66,6 +67,27 @@ class LoginWindow(QWidget):
         
         main_layout.addLayout(reset_layout)
         
+        # Developer Blockchain Access button
+        dev_layout = QHBoxLayout()
+        dev_btn = QPushButton("🔗 Developer Blockchain Audit")
+        dev_btn.setToolTip("Developer access to view all blockchain transactions (requires password)")
+        dev_btn.setStyleSheet("""
+            QPushButton { 
+                background-color: transparent; 
+                color: #6366f1; 
+                border: 1px solid #6366f1;
+                border-radius: 5px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover { background-color: #eef2ff; }
+        """)
+        dev_btn.clicked.connect(self.open_dev_panel)
+        dev_layout.addStretch()
+        dev_layout.addWidget(dev_btn)
+        dev_layout.addStretch()
+        main_layout.addLayout(dev_layout)
+        
         self.setLayout(main_layout)
 
     def handle_db_reset(self):
@@ -82,6 +104,19 @@ class LoginWindow(QWidget):
                 QMessageBox.information(self, "Database Reset", msg)
             else:
                 QMessageBox.critical(self, "Reset Error", msg)
+
+    def open_dev_panel(self):
+        from PyQt6.QtWidgets import QInputDialog
+        password, ok = QInputDialog.getText(
+            self, "Developer Access",
+            "Enter developer password:",
+            QLineEdit.EchoMode.Password
+        )
+        if ok and password == DEVELOPER_PASSWORD:
+            panel = DeveloperBlockchainPanel(self)
+            panel.exec()
+        elif ok:
+            QMessageBox.warning(self, "Access Denied", "Incorrect developer password.")
 
     def create_login_ui(self):
         widget = QWidget()

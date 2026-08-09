@@ -11,7 +11,8 @@ from src.ui.components.patient_tabs import (
     RecordsWidget, AppointmentsWidget, PrescriptionsWidget, 
     SettingsWidget, TreatmentStatusWidget, MedicineVerificationWidget
 )
-from src.database import get_patient_dashboard_stats, get_patient_analytics, get_aggregated_patient_data, get_patient_disease_trend, get_patient_vitals_timeline
+from src.ui.components.blockchain_viewer import BlockchainViewerWidget
+from src.database import get_patient_dashboard_stats, get_patient_analytics, get_aggregated_patient_data, get_patient_disease_trend, get_patient_vitals_timeline, get_patient_symptoms_history
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath
@@ -62,13 +63,39 @@ class AI_NodeGraph(QWidget):
             painter.drawText(node['x']-20, node['y']+30, node['id'])
 
 class SymptomHeatmap(QWidget):
-    def __init__(self, symptoms=[]):
+    def __init__(self, patient_id):
         super().__init__()
         self.setMinimumHeight(150)
-        if symptoms:
-            self.symptoms = [s[:15] for s in symptoms[:5]]
-        else:
+        self.patient_id = patient_id
+        self.symptoms = []
+        self.weekly_grid = {}
+        
+        history = get_patient_symptoms_history(self.patient_id)
+        
+        unique_symptoms = list(set([h["symptom"] for h in history]))[:5]
+        if not unique_symptoms:
             self.symptoms = ["No Data Yet"]
+            self.weekly_grid = {"No Data Yet": [0]*12}
+        else:
+            self.symptoms = [s[:15] for s in unique_symptoms]
+            from datetime import datetime
+            now = datetime.now()
+            
+            for sym in self.symptoms:
+                self.weekly_grid[sym] = [0]*12
+                
+            for h in history:
+                sym_name = h["symptom"][:15]
+                if sym_name not in self.weekly_grid:
+                    continue
+                try:
+                    recorded_dt = datetime.strptime(h["date"].split(" ")[0], "%Y-%m-%d")
+                    diff_days = (now - recorded_dt).days
+                    week_index = 11 - (diff_days // 7)
+                    if 0 <= week_index <= 11:
+                        self.weekly_grid[sym_name][week_index] += 1
+                except Exception:
+                    pass
         
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -91,11 +118,12 @@ class SymptomHeatmap(QWidget):
             painter.drawText(5, margin_top + i*25 + 15, sym)
             
             painter.setPen(Qt.PenStyle.NoPen)
+            intensities = self.weekly_grid.get(sym, [0]*12)
             for w in range(12):
-                # Random intensity
-                intensity = random.random()
-                if intensity > 0.8: color = "#ef4444"
-                elif intensity > 0.4: color = "#fcd34d"
+                count = intensities[w]
+                if count > 3: color = "#ef4444"
+                elif count > 1: color = "#fcd34d"
+                elif count > 0: color = "#86efac"
                 else: color = "#e2e8f0"
                 
                 painter.setBrush(QBrush(QColor(color)))
@@ -205,7 +233,7 @@ class PatientDashboard(QWidget):
         
         # Menu Items
         self.menu_btns = {}
-        menu_items = ["Dashboard", "AI Assistant", "Find Doctor", "My Records", "Appointments", "Prescriptions", "Treatment Status", "Medicine Verification", "Settings"]
+        menu_items = ["Dashboard", "AI Assistant", "Find Doctor", "My Records", "Appointments", "Prescriptions", "Treatment Status", "Medicine Verification", "Blockchain Integrity", "Settings"]
         
         for item in menu_items:
             btn = QPushButton(item)
@@ -243,7 +271,7 @@ class PatientDashboard(QWidget):
         self.stack.addWidget(self.chatbot_page)
 
         # Page 3: Find Doctor
-        self.find_doc_page = DoctorListWidget(mode="find")
+        self.find_doc_page = DoctorListWidget(mode="find", current_user_id=self.user_data['id'])
         self.stack.addWidget(self.find_doc_page)
         
         # Page 4: My Records
@@ -269,6 +297,10 @@ class PatientDashboard(QWidget):
         # Page 9: Settings
         self.settings_page = SettingsWidget(self.user_data)
         self.stack.addWidget(self.settings_page)
+
+        # Page 10: Blockchain Integrity
+        self.blockchain_page = BlockchainViewerWidget(self.user_data['id'])
+        self.stack.addWidget(self.blockchain_page)
 
         main_layout.addWidget(self.sidebar)
         main_layout.addWidget(self.content_area)
@@ -305,6 +337,9 @@ class PatientDashboard(QWidget):
             self.stack.setCurrentIndex(7)
         elif page_name == "Settings":
             self.stack.setCurrentIndex(8)
+        elif page_name == "Blockchain Integrity":
+            self.blockchain_page.load_data()
+            self.stack.setCurrentIndex(9)
 
     def create_home_page(self):
         page = QWidget()
@@ -335,11 +370,60 @@ class PatientDashboard(QWidget):
         # 1. Top Health Summary Cards
         stats = get_patient_dashboard_stats(self.user_data['id'])
         agg_data = get_aggregated_patient_data(self.user_data['id'])
+        vitals_timeline = get_patient_vitals_timeline(self.user_data['id'])
+        
+        # Calculate real dynamic progression & risk indices based on vitals
+        sys_bps = []
+        dia_bps = []
+        heart_rates = []
+        for entry in vitals_timeline:
+            bp = entry.get("blood_pressure")
+            hr = entry.get("heart_rate")
+            if bp and "/" in str(bp):
+                try:
+                    parts = str(bp).split("/")
+                    sys_bps.append(float(parts[0].strip()))
+                    dia_bps.append(float(parts[1].split()[0].strip()))
+                except Exception:
+                    pass
+            if hr:
+                try:
+                    heart_rates.append(float(str(hr).replace("bpm", "").replace("bpm", "").strip()))
+                except Exception:
+                    pass
+        
+        hypertension_val = 0
+        if sys_bps:
+            max_sys = max(sys_bps)
+            max_dia = max(dia_bps) if dia_bps else 80
+            if max_sys > 160 or max_dia > 100: hypertension_val = 85
+            elif max_sys > 140 or max_dia > 90: hypertension_val = 60
+            elif max_sys > 120 or max_dia > 80: hypertension_val = 35
+            else: hypertension_val = 15
+        elif agg_data["has_data"] and "Hypertension" in agg_data["conditions"]:
+            hypertension_val = 45
+            
+        cardiac_val = 0
+        if heart_rates or sys_bps:
+            hr_risk = 0
+            bp_risk = 0
+            if heart_rates:
+                avg_hr = sum(heart_rates)/len(heart_rates)
+                if avg_hr > 100 or avg_hr < 60: hr_risk = 40
+                elif avg_hr > 90 or avg_hr < 65: hr_risk = 20
+            if sys_bps:
+                avg_sys = sum(sys_bps)/len(sys_bps)
+                if avg_sys > 150: bp_risk = 45
+                elif avg_sys > 135: bp_risk = 25
+            cardiac_val = min(hr_risk + bp_risk + 10, 95)
+        elif agg_data["has_data"]:
+            cardiac_val = 15
+
+        risk_score = 100 - max(hypertension_val, cardiac_val) if agg_data["has_data"] else 100
         
         top_cards_layout = QGridLayout()
         top_cards_layout.setSpacing(15)
         
-        risk_score = agg_data["risk_score"]
         score_color = "#10b981" if risk_score > 70 else ("#f59e0b" if risk_score > 40 else "#ef4444")
         
         active_conditions_count = len(agg_data["conditions"])
@@ -463,7 +547,6 @@ class PatientDashboard(QWidget):
         vl.setStyleSheet("font-weight: bold; font-size: 16px;")
         vitals_layout.addWidget(vl)
         
-        vitals_timeline = get_patient_vitals_timeline(self.user_data['id'])
         if vitals_timeline:
             # Build HR trend from real vitals
             hr_points = []
@@ -507,7 +590,7 @@ class PatientDashboard(QWidget):
         p1_col = QVBoxLayout()
         p1_lbl = QLabel("Hypertension Progression Probability")
         p1_bar = QProgressBar()
-        p1_bar.setValue(25 if agg_data["has_data"] and "Hypertension" in agg_data["conditions"] else 0)
+        p1_bar.setValue(hypertension_val)
         p1_bar.setStyleSheet("QProgressBar { border: 1px solid #cbd5e1; border-radius: 5px; text-align: center; } QProgressBar::chunk { background-color: #f59e0b; border-radius: 4px; }")
         p1_col.addWidget(p1_lbl)
         p1_col.addWidget(p1_bar)
@@ -515,7 +598,7 @@ class PatientDashboard(QWidget):
         p2_col = QVBoxLayout()
         p2_lbl = QLabel("Cardiac Event Risk")
         p2_bar = QProgressBar()
-        p2_bar.setValue(12 if agg_data["has_data"] else 0)
+        p2_bar.setValue(cardiac_val)
         p2_bar.setStyleSheet("QProgressBar { border: 1px solid #cbd5e1; border-radius: 5px; text-align: center; } QProgressBar::chunk { background-color: #10b981; border-radius: 4px; }")
         p2_col.addWidget(p2_lbl)
         p2_col.addWidget(p2_bar)
@@ -538,7 +621,7 @@ class PatientDashboard(QWidget):
         hl = QLabel("Symptom Frequency (Last 12 Weeks)")
         hl.setStyleSheet("font-weight: bold; font-size: 16px;")
         hm_layout.addWidget(hl)
-        hm_layout.addWidget(SymptomHeatmap(symptoms=agg_data["symptoms"]))
+        hm_layout.addWidget(SymptomHeatmap(patient_id=self.user_data['id']))
         bottom_layout.addWidget(hm_card, 2)
         
         # 6. Medication Adherence

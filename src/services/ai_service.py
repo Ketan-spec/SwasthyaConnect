@@ -43,7 +43,7 @@ class AIService:
         return f"Based on current trends, there is a significant cluster of '{disease_name}' cases originating from {state}. Recommended Action: Increase healthcare resources and initiate local awareness campaigns in the affected area."
 
     @staticmethod
-    def chat_with_assistant(system_prompt: str, user_prompt: str, model_name: str = "mistral") -> str:
+    def chat_with_assistant(system_prompt: str, user_prompt: str, model_name: str = "qwen2.5:3b") -> str:
         import urllib.request
         import urllib.error
         import json
@@ -56,7 +56,11 @@ class AIService:
             data = {
                 "model": model_name,
                 "prompt": prompt,
-                "stream": False
+                "stream": False,
+                "options": {
+                    "temperature": 0.0,
+                    "seed": 42
+                }
             }
             req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), headers={'Content-Type': 'application/json'})
             with urllib.request.urlopen(req, timeout=120) as response:
@@ -68,7 +72,7 @@ class AIService:
             return f"Error: {str(e)}"
 
     @staticmethod
-    def chat_with_assistant_stream(system_prompt: str, user_prompt: str, model_name: str = "mistral"):
+    def chat_with_assistant_stream(system_prompt: str, user_prompt: str, model_name: str = "qwen2.5:3b"):
         import urllib.request
         import urllib.error
         import json
@@ -81,7 +85,11 @@ class AIService:
             data = {
                 "model": model_name,
                 "prompt": prompt,
-                "stream": True
+                "stream": True,
+                "options": {
+                    "temperature": 0.0,
+                    "seed": 42
+                }
             }
             req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), headers={'Content-Type': 'application/json'})
             with urllib.request.urlopen(req, timeout=120) as response:

@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from src.services.ocr_service import process_pdf_for_text
 from src.services.medibrief_service import MedibriefService
 from src.services.medibrief_pdf import build_summary_pdf_bytes
-from src.database import add_medical_record, add_past_appointment, add_prescription_entry
+from src.database import add_medical_record, add_past_appointment, add_prescription_entry, add_patient_vital, add_clinical_condition, add_patient_symptom
 
 class AIWorker(QThread):
     finished = pyqtSignal(dict)
@@ -70,7 +70,7 @@ class MedibriefAnalyzerDialog(QDialog):
         self.patient_id = patient_id
         self.record_type = record_type
         self.summary_json = None
-        self.api_key = "qwen2:0.5b"
+        self.api_key = "qwen2.5:3b"
         self._saved = False   # tracks whether record has already been saved to DB
         
         self.setWindowTitle(f"Smart Report Analyzer - {os.path.basename(pdf_path)}")
@@ -434,6 +434,55 @@ class MedibriefAnalyzerDialog(QDialog):
                     QMessageBox.warning(self, "Database Error", "Failed to save record.")
                 return False
             
+            # 2.5 Extract and save structured vitals, conditions, and symptoms to relational tables
+            record_id = success
+            
+            # Vitals
+            vitals_block = self.summary_json.get("vitals", {})
+            if vitals_block:
+                for vital_type, val in vitals_block.items():
+                    if val and str(val).lower() not in ("null", "none", ""):
+                        unit = None
+                        if vital_type == "blood_pressure":
+                            unit = "mmHg"
+                        elif vital_type == "heart_rate":
+                            unit = "bpm"
+                        elif vital_type == "temperature":
+                            unit = "F" if "F" in str(val) else ("C" if "C" in str(val) else None)
+                        elif vital_type == "spO2":
+                            unit = "%"
+                        elif vital_type == "weight":
+                            unit = "kg" if "kg" in str(val) else ("lbs" if "lbs" in str(val) else None)
+                        
+                        add_patient_vital(
+                            patient_id=self.patient_id,
+                            vital_type=vital_type,
+                            value=str(val),
+                            unit=unit,
+                            source_record_id=record_id
+                        )
+            
+            # Conditions
+            conditions = self.summary_json.get("diagnosis", []) + self.summary_json.get("impression_in_simple_words", [])
+            for cond in conditions:
+                if cond and str(cond).lower() not in ("null", "none", ""):
+                    add_clinical_condition(
+                        patient_id=self.patient_id,
+                        condition_name=str(cond),
+                        status="Active",
+                        source_record_id=record_id
+                    )
+            
+            # Symptoms
+            symptoms = self.summary_json.get("symptoms", [])
+            for sym in symptoms:
+                if sym and str(sym).lower() not in ("null", "none", ""):
+                    add_patient_symptom(
+                        patient_id=self.patient_id,
+                        symptom_name=str(sym),
+                        source_record_id=record_id
+                    )
+            
             # 3. Extract past appointment date from report_date field
             report_date = self.summary_json.get("report_date")
             if report_date and str(report_date).lower() not in ("null", "none", ""):
@@ -478,7 +527,7 @@ class MedibriefViewerDialog(QDialog):
     def __init__(self, parent_widget, summary_json, title="AI Generated Medical Report"):
         super().__init__(parent_widget)
         self.summary_json = summary_json
-        self.api_key = "qwen2:0.5b"
+        self.api_key = "qwen2.5:3b"
         
         self.setWindowTitle(title)
         self.resize(800, 600)
