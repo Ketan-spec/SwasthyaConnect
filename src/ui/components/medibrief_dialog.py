@@ -6,12 +6,13 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, 
     QTextEdit, QLineEdit, QTabWidget, QWidget, QMessageBox, QScrollArea, QFrame, QFormLayout
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 
 from src.services.ocr_service import process_pdf_for_text
 from src.services.medibrief_service import MedibriefService
 from src.services.medibrief_pdf import build_summary_pdf_bytes
-from src.database import add_medical_record, add_past_appointment, add_prescription_entry, add_patient_vital, add_clinical_condition, add_patient_symptom
+from src.database import add_medical_record, add_past_appointment, add_prescription_entry
+from src.services.translation_service import SUPPORTED_LANGS, translate_text
 
 class AIWorker(QThread):
     finished = pyqtSignal(dict)
@@ -63,6 +64,63 @@ class QnAWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+class TranslateWorker(QThread):
+    """Background worker to translate summary tab texts."""
+    finished = pyqtSignal(dict)  # {tab_name: translated_text}
+    error = pyqtSignal(str)
+    
+    def __init__(self, summary_json, target_lang):
+        super().__init__()
+        self.summary_json = summary_json
+        self.target_lang = target_lang
+    
+    def run(self):
+        try:
+            # Collect all tab texts and translate them
+            texts = {}
+            
+            # Tab 1: Summary
+            summary_block = self.summary_json.get("summary") or {}
+            overview = summary_block.get("patient_overview") or ""
+            bullets = self.summary_json.get("overall_summary_bullets") or []
+            summary_text = (overview or "") + "\n" + "\n".join([f"• {b}" for b in bullets if b])
+            if summary_text.strip():
+                texts["summary"] = translate_text(summary_text.strip(), self.target_lang)
+            
+            # Tab 2: Findings
+            findings = (self.summary_json.get("key_findings") or []) or (summary_block.get("key_findings") or [])
+            diagnosis = self.summary_json.get("diagnosis") or []
+            impression = self.summary_json.get("impression_in_simple_words") or []
+            combined_findings = [f for f in (findings + diagnosis + impression) if f]
+            findings_text = "\n".join([f"• {f}" for f in combined_findings])
+            if findings_text.strip():
+                texts["findings"] = translate_text(findings_text.strip(), self.target_lang)
+            
+            # Tab 3: Abnormal
+            abn_list = (self.summary_json.get("abnormal_values") or []) or (self.summary_json.get("abnormal_values_explained") or [])
+            abn_parts = []
+            for a in abn_list:
+                if isinstance(a, dict):
+                    meaning = a.get("meaning_simple") or ""
+                    if meaning:
+                        abn_parts.append(meaning)
+                elif isinstance(a, str):
+                    abn_parts.append(a)
+            if abn_parts:
+                texts["abnormal"] = translate_text("\n".join(abn_parts), self.target_lang)
+            
+            # Tab 4: Glossary
+            glo = self.summary_json.get("glossary") or []
+            glo_parts = []
+            for g in glo:
+                if isinstance(g, dict) and g.get("meaning_simple"):
+                    glo_parts.append(f"{g.get('term', '')}: {g['meaning_simple']}")
+            if glo_parts:
+                texts["glossary"] = translate_text("\n".join(glo_parts), self.target_lang)
+            
+            self.finished.emit(texts)
+        except Exception as e:
+            self.error.emit(str(e))
 class MedibriefAnalyzerDialog(QDialog):
     def __init__(self, parent_widget, pdf_path, patient_id, record_type="Report"):
         super().__init__(parent_widget)
@@ -70,8 +128,14 @@ class MedibriefAnalyzerDialog(QDialog):
         self.patient_id = patient_id
         self.record_type = record_type
         self.summary_json = None
-        self.api_key = "qwen2.5:3b"
         self._saved = False   # tracks whether record has already been saved to DB
+
+        # Auto-select best installed model
+        try:
+            from src.services.model_selector import get_best_extraction_model
+            self.api_key = get_best_extraction_model()
+        except Exception:
+            self.api_key = "qwen2.5:3b"
         
         self.setWindowTitle(f"Smart Report Analyzer - {os.path.basename(pdf_path)}")
         self.resize(800, 600)
@@ -98,9 +162,14 @@ class MedibriefAnalyzerDialog(QDialog):
         main_layout.addWidget(header_frame)
         
         # --- Status Label ---
-        self.status_label = QLabel("Upload ready. Click 'Analyze Report' to begin.")
+        self.status_label = QLabel("Upload ready. Click 'Analyze Report' to begin. (Usually takes 30-60 seconds)")
         self.status_label.setStyleSheet("color: #475569; font-style: italic;")
         main_layout.addWidget(self.status_label)
+        
+        # Elapsed timer
+        self._elapsed_seconds = 0
+        self._elapsed_timer = QTimer(self)
+        self._elapsed_timer.timeout.connect(self._tick_elapsed)
         
         # --- Tabs ---
         self.tabs = QTabWidget()
@@ -132,14 +201,20 @@ class MedibriefAnalyzerDialog(QDialog):
         self.export_pdf_btn = QPushButton("Export to PDF")
         self.export_pdf_btn.setEnabled(False)
         self.export_pdf_btn.clicked.connect(self.export_pdf)
+        footer_layout.addWidget(self.export_pdf_btn)
         
+        # Translate button
+        self.translate_btn = QPushButton("🌐 Translate Summary")
+        self.translate_btn.setStyleSheet("background-color: #7c3aed; color: white; padding: 8px 15px; border-radius: 4px; font-weight: bold;")
+        self.translate_btn.setEnabled(False)
+        self.translate_btn.clicked.connect(self.translate_summary)
+        footer_layout.addWidget(self.translate_btn)
+        
+        footer_layout.addStretch()
         self.save_record_btn = QPushButton("Save to My Records")
         self.save_record_btn.setStyleSheet("background-color: #2563eb; color: white; padding: 8px 15px; border-radius: 4px; font-weight: bold;")
         self.save_record_btn.setEnabled(False)
         self.save_record_btn.clicked.connect(self.save_to_db)
-        
-        footer_layout.addWidget(self.export_pdf_btn)
-        footer_layout.addStretch()
         footer_layout.addWidget(self.save_record_btn)
         main_layout.addLayout(footer_layout)
 
@@ -179,40 +254,52 @@ class MedibriefAnalyzerDialog(QDialog):
         self.analyze_btn.setEnabled(False)
         self.tabs.setEnabled(False)
         
+        # Start elapsed timer
+        self._elapsed_seconds = 0
+        self._elapsed_timer.start(1000)
+        
         self.worker = AIWorker(self.pdf_path, lang_code, selected_model)
         self.worker.progress_update.connect(self.update_status)
         self.worker.finished.connect(self.analysis_complete)
         self.worker.error.connect(self.analysis_error)
         self.worker.start()
 
+    def _tick_elapsed(self):
+        self._elapsed_seconds += 1
+        current = self.status_label.text()
+        base = current.split("(")[0].strip() if "(" in current else current
+        self.status_label.setText(f"{base} ({self._elapsed_seconds}s elapsed)")
+
     def update_status(self, msg: str):
         self.status_label.setText(f"⏳ {msg}")
 
     def analysis_complete(self, result: dict):
+        self._elapsed_timer.stop()
         self.summary_json = result
-        self.status_label.setText("✅ Analysis complete.")
+        self.status_label.setText(f"✅ Analysis complete in {self._elapsed_seconds}s.")
         self.analyze_btn.setEnabled(True)
         self.tabs.setEnabled(True)
         self.export_pdf_btn.setEnabled(True)
         self.save_record_btn.setEnabled(True)
         self.ask_btn.setEnabled(True)
+        self.translate_btn.setEnabled(True)
         
         # ── Tab 1: Overall Summary ─────────────────────────────────────────────
-        summary_block = result.get("summary", {})
-        overview = summary_block.get("patient_overview", "")
+        summary_block = result.get("summary") or {}
+        overview = summary_block.get("patient_overview") or ""
         
         summary_lines = []
         if overview:
             summary_lines.append(f"📋 Patient Overview:\n{overview}\n")
         
-        bullets = result.get("overall_summary_bullets", [])
+        bullets = result.get("overall_summary_bullets") or []
         if bullets:
             summary_lines.append("📌 Key Highlights:")
-            summary_lines.extend([f"  • {b}" for b in bullets])
+            summary_lines.extend([f"  • {b}" for b in bullets if b])
             summary_lines.append("")
         
         # Vitals block
-        vitals = result.get("vitals", {})
+        vitals = result.get("vitals") or {}
         vital_rows = [
             ("Blood Pressure", vitals.get("blood_pressure")),
             ("Heart Rate",     vitals.get("heart_rate")),
@@ -229,8 +316,8 @@ class MedibriefAnalyzerDialog(QDialog):
             summary_lines.append("")
         
         # Medications
-        meds = result.get("medications", [])
-        real_meds = [m for m in meds if m.get("name") and str(m.get("name")).lower() not in ("null", "none", "")]
+        meds = result.get("medications") or []
+        real_meds = [m for m in meds if isinstance(m, dict) and m.get("name") and str(m.get("name")).lower() not in ("null", "none", "")]
         if real_meds:
             summary_lines.append("💊 Medications:")
             for m in real_meds:
@@ -242,47 +329,47 @@ class MedibriefAnalyzerDialog(QDialog):
             summary_lines.append("")
         
         # Next Steps
-        next_steps = result.get("next_steps", [])
+        next_steps = result.get("next_steps") or []
         if next_steps:
             summary_lines.append("🗓️ Recommended Next Steps:")
-            summary_lines.extend([f"  • {s}" for s in next_steps])
+            summary_lines.extend([f"  • {s}" for s in next_steps if s])
             summary_lines.append("")
         
         # Disclaimer
-        disclaimers = result.get("disclaimer", [])
+        disclaimers = result.get("disclaimer") or []
         if disclaimers:
-            summary_lines.append("⚠️ " + " ".join(disclaimers))
+            summary_lines.append("⚠️ " + " ".join([d for d in disclaimers if d]))
         
         self._populate_text(self.tab_summary, "\n".join(summary_lines) if summary_lines else "No summary data extracted.")
         
         # ── Tab 2: Key Findings ────────────────────────────────────────────────
-        findings = result.get("key_findings") or summary_block.get("key_findings", [])
-        diagnosis = result.get("diagnosis", [])
-        impression = result.get("impression_in_simple_words", [])
-        symptoms = result.get("symptoms", [])
+        findings = (result.get("key_findings") or []) or (summary_block.get("key_findings") or [])
+        diagnosis = result.get("diagnosis") or []
+        impression = result.get("impression_in_simple_words") or []
+        symptoms = result.get("symptoms") or []
         
         findings_lines = []
         if findings:
             findings_lines.append("🔬 Key Findings:")
-            findings_lines.extend([f"  • {f}" for f in findings])
+            findings_lines.extend([f"  • {f}" for f in findings if f])
             findings_lines.append("")
         if diagnosis:
             findings_lines.append("🏷️ Diagnosis / Impression:")
-            findings_lines.extend([f"  • {d}" for d in diagnosis])
+            findings_lines.extend([f"  • {d}" for d in diagnosis if d])
             findings_lines.append("")
         if impression:
             findings_lines.append("🗣️ In Simple Words:")
-            findings_lines.extend([f"  • {i}" for i in impression])
+            findings_lines.extend([f"  • {i}" for i in impression if i])
             findings_lines.append("")
         if symptoms:
             findings_lines.append("🤒 Reported Symptoms:")
-            findings_lines.extend([f"  • {s}" for s in symptoms])
+            findings_lines.extend([f"  • {s}" for s in symptoms if s])
             
         self._populate_text(self.tab_findings, "\n".join(findings_lines) if findings_lines else "No findings extracted from this report.")
         
         # ── Tab 3: Abnormal Values ─────────────────────────────────────────────
-        abn_list = result.get("abnormal_values") or result.get("abnormal_values_explained", [])
-        urgent = result.get("urgent_warning_signs", [])
+        abn_list = (result.get("abnormal_values") or []) or (result.get("abnormal_values_explained") or [])
+        urgent = result.get("urgent_warning_signs") or []
         
         abn_text = ""
         if abn_list:
@@ -313,7 +400,7 @@ class MedibriefAnalyzerDialog(QDialog):
         # ── Tab 4: Glossary ────────────────────────────────────────────────────
         glo = result.get("glossary") or [
             {"term": t, "meaning_simple": ""} if isinstance(t, str) else t
-            for t in result.get("medical_terms", [])
+            for t in (result.get("medical_terms") or [])
         ]
         glo_text = ""
         for g in glo:
@@ -333,6 +420,7 @@ class MedibriefAnalyzerDialog(QDialog):
 
 
     def analysis_error(self, err: str):
+        self._elapsed_timer.stop()
         self.status_label.setText("❌ Error during analysis.")
         QMessageBox.critical(self, "AI Error", f"An error occurred: {err}")
         self.analyze_btn.setEnabled(True)
@@ -365,6 +453,43 @@ class MedibriefAnalyzerDialog(QDialog):
     def qa_error(self, err: str):
         self.chat_history.append(f"<b style='color:red;'>Error:</b> {err}<br>")
         self.ask_btn.setEnabled(True)
+
+    def translate_summary(self):
+        """Translate all visible tab content to the selected language."""
+        if not self.summary_json:
+            return
+        lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        if lang_code == "en":
+            QMessageBox.information(self, "Language", "Summary is already in English. Select Hindi or Marathi to translate.")
+            return
+        
+        self.translate_btn.setEnabled(False)
+        self.status_label.setText(f"🌐 Translating to {SUPPORTED_LANGS.get(lang_code, lang_code)}...")
+        
+        # Run in a thread to avoid UI freeze
+        self._translate_worker = TranslateWorker(self.summary_json, lang_code)
+        self._translate_worker.finished.connect(self._on_translate_done)
+        self._translate_worker.error.connect(self._on_translate_error)
+        self._translate_worker.start()
+
+    def _on_translate_done(self, translated_texts):
+        """Receives dict with tab_name -> translated_text."""
+        self.translate_btn.setEnabled(True)
+        self.status_label.setText("🌐 Translation complete!")
+        
+        if translated_texts.get("summary"):
+            self._populate_text(self.tab_summary, translated_texts["summary"])
+        if translated_texts.get("findings"):
+            self._populate_text(self.tab_findings, translated_texts["findings"])
+        if translated_texts.get("abnormal"):
+            self._populate_text(self.tab_abnormal, translated_texts["abnormal"])
+        if translated_texts.get("glossary"):
+            self._populate_text(self.tab_glossary, translated_texts["glossary"])
+
+    def _on_translate_error(self, err):
+        self.translate_btn.setEnabled(True)
+        self.status_label.setText("❌ Translation failed.")
+        QMessageBox.warning(self, "Translation Error", str(err))
 
     def export_pdf(self):
         try:
@@ -409,10 +534,18 @@ class MedibriefAnalyzerDialog(QDialog):
                 
             # 2. Build title from new schema
             default_title = "Prescription Summary" if self.record_type == "Prescription" else "Report Summary"
-            impression = self.summary_json.get("impression_in_simple_words", [])
-            diagnosis = self.summary_json.get("diagnosis", [])
-            title_candidates = impression + diagnosis
-            title = title_candidates[0][:50] if title_candidates else default_title
+            impression = self.summary_json.get("impression_in_simple_words") or []
+            diagnosis = self.summary_json.get("diagnosis") or []
+            title_candidates = (impression if isinstance(impression, list) else []) + (diagnosis if isinstance(diagnosis, list) else [])
+            
+            title = default_title
+            if title_candidates:
+                first = title_candidates[0]
+                if isinstance(first, dict):
+                    cand_str = str(first.get("impression") or first.get("diagnosis") or first.get("term") or (list(first.values())[0] if first else default_title))
+                else:
+                    cand_str = str(first)
+                title = cand_str[:50] if cand_str else default_title
             
             description = f"AI Extracted {self.record_type}"
             json_str = json.dumps(self.summary_json)
@@ -434,55 +567,6 @@ class MedibriefAnalyzerDialog(QDialog):
                     QMessageBox.warning(self, "Database Error", "Failed to save record.")
                 return False
             
-            # 2.5 Extract and save structured vitals, conditions, and symptoms to relational tables
-            record_id = success
-            
-            # Vitals
-            vitals_block = self.summary_json.get("vitals", {})
-            if vitals_block:
-                for vital_type, val in vitals_block.items():
-                    if val and str(val).lower() not in ("null", "none", ""):
-                        unit = None
-                        if vital_type == "blood_pressure":
-                            unit = "mmHg"
-                        elif vital_type == "heart_rate":
-                            unit = "bpm"
-                        elif vital_type == "temperature":
-                            unit = "F" if "F" in str(val) else ("C" if "C" in str(val) else None)
-                        elif vital_type == "spO2":
-                            unit = "%"
-                        elif vital_type == "weight":
-                            unit = "kg" if "kg" in str(val) else ("lbs" if "lbs" in str(val) else None)
-                        
-                        add_patient_vital(
-                            patient_id=self.patient_id,
-                            vital_type=vital_type,
-                            value=str(val),
-                            unit=unit,
-                            source_record_id=record_id
-                        )
-            
-            # Conditions
-            conditions = self.summary_json.get("diagnosis", []) + self.summary_json.get("impression_in_simple_words", [])
-            for cond in conditions:
-                if cond and str(cond).lower() not in ("null", "none", ""):
-                    add_clinical_condition(
-                        patient_id=self.patient_id,
-                        condition_name=str(cond),
-                        status="Active",
-                        source_record_id=record_id
-                    )
-            
-            # Symptoms
-            symptoms = self.summary_json.get("symptoms", [])
-            for sym in symptoms:
-                if sym and str(sym).lower() not in ("null", "none", ""):
-                    add_patient_symptom(
-                        patient_id=self.patient_id,
-                        symptom_name=str(sym),
-                        source_record_id=record_id
-                    )
-            
             # 3. Extract past appointment date from report_date field
             report_date = self.summary_json.get("report_date")
             if report_date and str(report_date).lower() not in ("null", "none", ""):
@@ -490,7 +574,7 @@ class MedibriefAnalyzerDialog(QDialog):
             
             # 4. If it's a Prescription → save each medicine to prescriptions table
             if self.record_type == "Prescription":
-                medications = self.summary_json.get("medications", [])
+                medications = self.summary_json.get("medications") or []
                 for med in medications:
                     if isinstance(med, dict) and med.get("name") and str(med.get("name")).lower() not in ("null", "none", ""):
                         add_prescription_entry(
@@ -527,7 +611,13 @@ class MedibriefViewerDialog(QDialog):
     def __init__(self, parent_widget, summary_json, title="AI Generated Medical Report"):
         super().__init__(parent_widget)
         self.summary_json = summary_json
-        self.api_key = "qwen2.5:3b"
+
+        # Auto-select best installed model for Q&A
+        try:
+            from src.services.model_selector import get_best_chat_model
+            self.api_key = get_best_chat_model()
+        except Exception:
+            self.api_key = "qwen2.5:3b"
         
         self.setWindowTitle(title)
         self.resize(800, 600)
@@ -609,31 +699,148 @@ class MedibriefViewerDialog(QDialog):
         layout.addLayout(input_layout)
 
     def populate_data(self):
-        result = self.summary_json
+        result = self.summary_json or {}
+        if isinstance(result, str):
+            try:
+                import json as _json
+                result = _json.loads(result)
+            except Exception:
+                result = {}
         
-        self._populate_text(self.tab_summary, self._format_list(result.get("overall_summary_bullets", [])))
-        self._populate_text(self.tab_findings, self._format_list(result.get("key_findings", [])))
+        summary_block = result.get("summary") or {}
+        overview = summary_block.get("patient_overview") or ""
         
-        abn = result.get("abnormal_values_explained", [])
+        # 1. Overall Summary Tab
+        summary_lines = []
+        if overview:
+            summary_lines.append(f"📋 Patient Overview:\n{overview}\n")
+        
+        bullets = result.get("overall_summary_bullets") or []
+        if bullets:
+            summary_lines.append("📌 Key Highlights:")
+            summary_lines.extend([f"  • {b}" for b in bullets if b])
+            summary_lines.append("")
+        
+        vitals = result.get("vitals") or {}
+        if isinstance(vitals, dict):
+            vital_rows = [
+                ("Blood Pressure", vitals.get("blood_pressure")),
+                ("Heart Rate",     vitals.get("heart_rate")),
+                ("Temperature",    vitals.get("temperature")),
+                ("SpO2",           vitals.get("spO2")),
+                ("Weight",         vitals.get("weight")),
+                ("BMI",            vitals.get("bmi")),
+            ]
+            present_vitals = [(k, v) for k, v in vital_rows if v and str(v).lower() not in ("null", "none", "")]
+            if present_vitals:
+                summary_lines.append("🩺 Extracted Vitals:")
+                for k, v in present_vitals:
+                    summary_lines.append(f"  • {k}: {v}")
+                summary_lines.append("")
+            
+        meds = result.get("medications") or []
+        real_meds = [m for m in meds if isinstance(m, dict) and m.get("name") and str(m.get("name")).lower() not in ("null", "none", "")]
+        if real_meds:
+            summary_lines.append("💊 Medications:")
+            for m in real_meds:
+                med_str = f"  • {m['name']}"
+                if m.get("dosage"):   med_str += f" — {m['dosage']}"
+                if m.get("frequency"): med_str += f"  |  {m['frequency']}"
+                if m.get("duration"): med_str += f"  |  {m['duration']}"
+                summary_lines.append(med_str)
+            summary_lines.append("")
+            
+        next_steps = result.get("next_steps") or []
+        if next_steps:
+            summary_lines.append("🗓️ Recommended Next Steps:")
+            summary_lines.extend([f"  • {s}" for s in next_steps if s])
+            summary_lines.append("")
+            
+        disclaimers = result.get("disclaimer") or []
+        if disclaimers:
+            summary_lines.append("⚠️ " + " ".join([d for d in disclaimers if d]))
+            
+        self._populate_text(self.tab_summary, "\n".join(summary_lines) if summary_lines else "No summary data available.")
+        
+        # 2. Key Findings Tab
+        findings = (result.get("key_findings") or []) or (summary_block.get("key_findings") or [])
+        diagnosis = result.get("diagnosis") or []
+        impression = result.get("impression_in_simple_words") or []
+        symptoms = result.get("symptoms") or []
+        
+        findings_lines = []
+        if findings:
+            findings_lines.append("🔬 Key Findings:")
+            for f in findings:
+                if f: findings_lines.append(f"  • {f.get('term') if isinstance(f, dict) else f}")
+            findings_lines.append("")
+        if diagnosis:
+            findings_lines.append("🏷️ Diagnosis / Impression:")
+            for d in diagnosis:
+                if d: findings_lines.append(f"  • {d.get('term') or d.get('diagnosis') if isinstance(d, dict) else d}")
+            findings_lines.append("")
+        if impression:
+            findings_lines.append("🗣️ In Simple Words:")
+            for i in impression:
+                if i: findings_lines.append(f"  • {i.get('impression') if isinstance(i, dict) else i}")
+            findings_lines.append("")
+        if symptoms:
+            findings_lines.append("🤒 Reported Symptoms:")
+            for s in symptoms:
+                if s: findings_lines.append(f"  • {s.get('symptom') if isinstance(s, dict) else s}")
+                
+        self._populate_text(self.tab_findings, "\n".join(findings_lines) if findings_lines else "No findings extracted from this report.")
+        
+        # 3. Abnormal Values Tab
+        abn_list = (result.get("abnormal_values") or []) or (result.get("abnormal_values_explained") or [])
+        urgent = result.get("urgent_warning_signs") or []
+        
         abn_text = ""
-        for a in abn:
-            if isinstance(a, dict):
-                abn_text += f"🔴 {a.get('test')}: {a.get('value')} {a.get('unit')} (Range: {a.get('reference_range')} | Flag: {a.get('flag')})\n"
-                abn_text += f"   Meaning: {a.get('meaning_simple')}\n\n"
-            else:
-                abn_text += f"🔴 {a}\n\n"
-        if not abn: abn_text = "No abnormal values detected."
-        self._populate_text(self.tab_abnormal, abn_text)
+        if abn_list:
+            abn_text += "🔴 Abnormal Values:\n\n"
+            for a in abn_list:
+                if isinstance(a, dict):
+                    test = a.get("vital_sign") or a.get("test") or "Abnormal Parameter"
+                    val  = a.get("value") or "—"
+                    unit = a.get("unit") or ""
+                    ref  = a.get("reference_range") or "—"
+                    flag = a.get("flag") or a.get("status") or "—"
+                    meaning = a.get("meaning_simple") or ""
+                    abn_text += f"  🔴 {test}: {val} {unit} (Range/Status: {ref} | {flag})\n"
+                    if meaning:
+                        abn_text += f"      → {meaning}\n"
+                    abn_text += "\n"
+                elif a:
+                    abn_text += f"  🔴 {a}\n\n"
+        else:
+            abn_text += "✅ No abnormal values detected from this report.\n\n"
+            
+        if urgent:
+            abn_text += "🚨 Urgent Warning Signs:\n"
+            abn_text += "\n".join([f"  ⚠️ {u}" for u in urgent if u])
+            
+        self._populate_text(self.tab_abnormal, abn_text.strip() if abn_text else "No abnormal data found.")
         
-        glo = result.get("glossary", [])
+        # 4. Glossary Tab
+        glo = (result.get("glossary") or []) or [
+            {"term": t, "meaning_simple": ""} if isinstance(t, str) else t
+            for t in (result.get("medical_terms") or [])
+        ]
         glo_text = ""
         for g in glo:
             if isinstance(g, dict):
-                glo_text += f"📖 {g.get('term')}:\n   {g.get('meaning_simple')}\n\n"
-            else:
+                term = g.get("term") or ""
+                meaning = g.get("meaning_simple") or ""
+                if term:
+                    glo_text += f"📖 {term}"
+                    if meaning:
+                        glo_text += f":\n   {meaning}"
+                    glo_text += "\n\n"
+            elif isinstance(g, str) and g:
                 glo_text += f"📖 {g}\n\n"
-        if not glo: glo_text = "No complex terms identified."
-        self._populate_text(self.tab_glossary, glo_text)
+        if not glo_text:
+            glo_text = "No complex medical terms identified in this report."
+        self._populate_text(self.tab_glossary, glo_text.strip())
 
     def _format_list(self, arr: list) -> str:
         if not arr: return "Not provided."

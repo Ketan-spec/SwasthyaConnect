@@ -3,7 +3,55 @@ from PyQt6.QtWidgets import (
     QScrollArea, QFrame, QGridLayout, QMessageBox, QDialog, QFormLayout, QComboBox
 )
 from PyQt6.QtCore import Qt
-from src.database import get_all_doctors, create_referral, book_appointment
+from src.database import get_all_doctors, create_referral, book_appointment, get_distinct_specializations
+
+# Disease → Specialization mapping for smart search
+DISEASE_SPECIALIZATION_MAP = {
+    # Cardiology
+    "heart": "Cardiologist", "cardiac": "Cardiologist", "chest pain": "Cardiologist",
+    "blood pressure": "Cardiologist", "hypertension": "Cardiologist", "heart attack": "Cardiologist",
+    "palpitation": "Cardiologist", "arrhythmia": "Cardiologist",
+    # Neurology
+    "headache": "Neurologist", "migraine": "Neurologist", "seizure": "Neurologist",
+    "brain": "Neurologist", "stroke": "Neurologist", "nerve": "Neurologist",
+    "epilepsy": "Neurologist", "paralysis": "Neurologist",
+    # Orthopedics
+    "fracture": "Orthopedic", "bone": "Orthopedic", "joint": "Orthopedic",
+    "back pain": "Orthopedic", "knee": "Orthopedic", "spine": "Orthopedic",
+    "arthritis": "Orthopedic",
+    # Dermatology
+    "skin": "Dermatologist", "rash": "Dermatologist", "acne": "Dermatologist",
+    "eczema": "Dermatologist", "allergy": "Dermatologist", "fungal": "Dermatologist",
+    # Gastroenterology
+    "stomach": "Gastroenterologist", "digestion": "Gastroenterologist", "liver": "Gastroenterologist",
+    "acid reflux": "Gastroenterologist", "ulcer": "Gastroenterologist", "diarrhea": "Gastroenterologist",
+    # ENT
+    "ear": "ENT Specialist", "nose": "ENT Specialist", "throat": "ENT Specialist",
+    "sinus": "ENT Specialist", "tonsil": "ENT Specialist", "hearing": "ENT Specialist",
+    # Ophthalmology
+    "eye": "Ophthalmologist", "vision": "Ophthalmologist", "cataract": "Ophthalmologist",
+    "glaucoma": "Ophthalmologist",
+    # Endocrinology
+    "diabetes": "Endocrinologist", "thyroid": "Endocrinologist", "hormone": "Endocrinologist",
+    "sugar": "Endocrinologist",
+    # Pulmonology
+    "asthma": "Pulmonologist", "breathing": "Pulmonologist", "lung": "Pulmonologist",
+    "cough": "Pulmonologist", "pneumonia": "Pulmonologist", "tb": "Pulmonologist",
+    # Psychiatry
+    "depression": "Psychiatrist", "anxiety": "Psychiatrist", "mental": "Psychiatrist",
+    "insomnia": "Psychiatrist", "stress": "Psychiatrist",
+    # Urology
+    "kidney": "Urologist", "urine": "Urologist", "bladder": "Urologist",
+    "prostate": "Urologist",
+    # Gynecology
+    "pregnancy": "Gynecologist", "menstrual": "Gynecologist", "pcos": "Gynecologist",
+    "fertility": "Gynecologist",
+    # Pediatrics
+    "child": "Pediatrician", "infant": "Pediatrician", "vaccination": "Pediatrician",
+    # General
+    "fever": "General Physician", "cold": "General Physician", "flu": "General Physician",
+    "infection": "General Physician", "weakness": "General Physician",
+}
 
 class ReferralDialog(QDialog):
     def __init__(self, doctor_name, parent=None):
@@ -139,8 +187,15 @@ class DoctorListWidget(QWidget):
         header.setStyleSheet("font-size: 18px; font-weight: bold; color: #1e3a8a; margin-bottom: 10px;")
         layout.addWidget(header)
         
-        # Filter Bar
-        filter_layout = QHBoxLayout()
+        # Smart search hint
+        if self.mode == "find":
+            hint = QLabel("💡 Tip: Search by disease name (e.g., 'heart attack', 'diabetes', 'fracture') to find matching specialists automatically.")
+            hint.setWordWrap(True)
+            hint.setStyleSheet("color: #64748b; font-style: italic; font-size: 12px; margin-bottom: 5px; padding: 6px; background: #f0f9ff; border-radius: 5px;")
+            layout.addWidget(hint)
+        
+        # Filter Bar — Row 1: State + Specialization
+        filter_row1 = QHBoxLayout()
         
         # State Filter
         self.state_filter = QComboBox()
@@ -152,12 +207,30 @@ class DoctorListWidget(QWidget):
         ]
         self.state_filter.addItems(INDIAN_STATES)
         self.state_filter.currentTextChanged.connect(self.load_doctors)
-        self.state_filter.setFixedWidth(150)
+        self.state_filter.setFixedWidth(160)
         self.state_filter.setStyleSheet("padding: 5px; border: 1px solid #cbd5e1; border-radius: 5px;")
         
-        # Search Input
+        # Specialization Filter (dynamic from DB)
+        self.spec_filter = QComboBox()
+        self.spec_filter.addItem("All Specializations")
+        db_specs = get_distinct_specializations()
+        if db_specs:
+            self.spec_filter.addItems(db_specs)
+        self.spec_filter.currentTextChanged.connect(lambda _: self.filter_doctors_local())
+        self.spec_filter.setFixedWidth(200)
+        self.spec_filter.setStyleSheet("padding: 5px; border: 1px solid #cbd5e1; border-radius: 5px;")
+        
+        filter_row1.addWidget(QLabel("State:"))
+        filter_row1.addWidget(self.state_filter)
+        filter_row1.addWidget(QLabel("Specialization:"))
+        filter_row1.addWidget(self.spec_filter)
+        filter_row1.addStretch()
+        layout.addLayout(filter_row1)
+        
+        # Filter Bar — Row 2: Search Input
+        filter_row2 = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search by Name or Specialization...")
+        self.search_input.setPlaceholderText("Search by name, disease, or specialization...")
         self.search_input.setStyleSheet("""
             QLineEdit {
                 border: 1px solid #cbd5e1;
@@ -166,13 +239,14 @@ class DoctorListWidget(QWidget):
                 font-size: 14px;
             }
         """)
-        self.search_input.textChanged.connect(self.filter_doctors_local)
+        self.search_input.textChanged.connect(lambda _: self.filter_doctors_local())
+        filter_row2.addWidget(self.search_input)
+        layout.addLayout(filter_row2)
         
-        filter_layout.addWidget(QLabel("Filter by State:"))
-        filter_layout.addWidget(self.state_filter)
-        filter_layout.addWidget(self.search_input)
-        
-        layout.addLayout(filter_layout)
+        # Results count label
+        self.results_label = QLabel("")
+        self.results_label.setStyleSheet("color: #64748b; font-size: 12px; margin: 4px 0;")
+        layout.addWidget(self.results_label)
         
         # Scroll Area for List
         self.scroll = QScrollArea()
@@ -198,7 +272,7 @@ class DoctorListWidget(QWidget):
              self.doctors = all_docs
         
         # Re-apply local filter if search text exists
-        self.filter_doctors_local(self.search_input.text())
+        self.filter_doctors_local()
 
     def populate_list(self, doctor_list):
         # Clear existing items
@@ -209,11 +283,13 @@ class DoctorListWidget(QWidget):
                 widget.setParent(None)
                 
         if not doctor_list:
-            no_data = QLabel("No doctors found.")
-            no_data.setStyleSheet("color: #64748b; font-style: italic;")
+            no_data = QLabel("No doctors found matching your criteria.")
+            no_data.setStyleSheet("color: #64748b; font-style: italic; font-size: 14px; padding: 20px;")
             self.list_layout.addWidget(no_data)
+            self.results_label.setText("0 doctors found")
             return
 
+        self.results_label.setText(f"{len(doctor_list)} doctor(s) found")
         for doc in doctor_list:
             card = self.create_doctor_card(doc)
             self.list_layout.addWidget(card)
@@ -245,13 +321,21 @@ class DoctorListWidget(QWidget):
         location = QLabel(f"📍 {doc['state'] or 'Unknown State'}")
         location.setStyleSheet("color: #64748b; font-size: 12px;")
         
-        contact = QLabel(f"📧 {doc['email']}")
+        # Show unique ID for credibility
+        uid_text = f"🆔 Reg: {doc['unique_id']}" if doc.get('unique_id') else ""
+        uid_label = QLabel(uid_text)
+        uid_label.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        
+        contact = QLabel(f"📧 {doc['email']}" if doc.get('email') else "")
         contact.setStyleSheet("color: #64748b; font-size: 12px;")
         
         info_layout.addWidget(name)
         info_layout.addWidget(spec)
         info_layout.addWidget(location)
-        info_layout.addWidget(contact)
+        if uid_text:
+            info_layout.addWidget(uid_label)
+        if doc.get('email'):
+            info_layout.addWidget(contact)
         layout.addLayout(info_layout)
         
         # Action Button
@@ -277,17 +361,47 @@ class DoctorListWidget(QWidget):
         
         return card
 
-    def filter_doctors_local(self, text):
-        text = text.lower()
-        if not text:
-             self.populate_list(self.doctors)
-             return
-             
-        filtered = [
-            d for d in self.doctors 
-            if (d['full_name'] and text in d['full_name'].lower()) or 
-               (d['specialization'] and text in d['specialization'].lower())
-        ]
+    def filter_doctors_local(self, text=None):
+        """Filter doctors by search text and specialization dropdown."""
+        if text is None:
+            text = self.search_input.text()
+        text = text.lower().strip()
+        
+        spec_filter = self.spec_filter.currentText()
+        
+        # Start with all loaded doctors
+        filtered = list(self.doctors)
+        
+        # Apply specialization dropdown filter
+        if spec_filter and spec_filter != "All Specializations":
+            filtered = [d for d in filtered if d.get('specialization') and spec_filter.lower() in d['specialization'].lower()]
+        
+        # Apply text search
+        if text:
+            # Check if the search matches a disease keyword
+            matched_spec = None
+            for disease_keyword, spec_name in DISEASE_SPECIALIZATION_MAP.items():
+                if disease_keyword in text:
+                    matched_spec = spec_name
+                    break
+            
+            if matched_spec:
+                # Smart filter: match the mapped specialization
+                filtered = [
+                    d for d in filtered
+                    if (d.get('specialization') and matched_spec.lower() in d['specialization'].lower()) or
+                       (d.get('full_name') and text in d['full_name'].lower())
+                ]
+            else:
+                # Standard text filter on name and specialization
+                filtered = [
+                    d for d in filtered 
+                    if (d.get('full_name') and text in d['full_name'].lower()) or 
+                       (d.get('specialization') and text in d['specialization'].lower()) or
+                       (d.get('state') and text in d['state'].lower()) or
+                       (d.get('unique_id') and text in d['unique_id'].lower())
+                ]
+        
         self.populate_list(filtered)
 
     def handle_action(self, doc):

@@ -48,7 +48,7 @@ class AIService:
         import urllib.error
         import json
         
-        medical_rule = "CRITICAL INSTRUCTION: You are a specialized medical AI assistant. If the user asks a question that is entirely unrelated to healthcare, medicine, or their personal well-being, you MUST reply with exactly: 'I am a medical assistant. Please ask questions related to your health or the medical domain.' and refuse to answer the question.\n\n"
+        medical_rule = "You are SwasthyaConnect's specialized AI Medical & Healthcare Assistant. Provide helpful, accurate, and easy-to-understand information for medical queries, medicines, and patient health.\n\n"
         
         try:
             url = "http://localhost:11434/api/generate"
@@ -58,8 +58,8 @@ class AIService:
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.0,
-                    "seed": 42
+                    "temperature": 0.3,
+                    "num_predict": 1024
                 }
             }
             req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), headers={'Content-Type': 'application/json'})
@@ -77,7 +77,7 @@ class AIService:
         import urllib.error
         import json
         
-        medical_rule = "CRITICAL INSTRUCTION: You are a specialized medical AI assistant. If the user asks a question that is entirely unrelated to healthcare, medicine, or their personal well-being, you MUST reply with exactly: 'I am a medical assistant. Please ask questions related to your health or the medical domain.' and refuse to answer the question.\n\n"
+        medical_rule = "You are SwasthyaConnect's specialized AI Medical & Healthcare Assistant. Provide helpful, accurate, and easy-to-understand information for medical queries, medicines, and patient health.\n\n"
         
         try:
             url = "http://localhost:11434/api/generate"
@@ -87,8 +87,8 @@ class AIService:
                 "prompt": prompt,
                 "stream": True,
                 "options": {
-                    "temperature": 0.0,
-                    "seed": 42
+                    "temperature": 0.3,
+                    "num_predict": 1024
                 }
             }
             req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), headers={'Content-Type': 'application/json'})

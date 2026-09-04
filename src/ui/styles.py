@@ -181,70 +181,78 @@ CONTENT_STYLE = """
 """
 
 LOGIN_STYLES = """
-    QMainWindow {
-        background-color: #f8fafc;
-    }
-    QWidget#CentralWidget {
-         background-color: #f8fafc;
+    QWidget#MainLoginBg {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #0f172a, stop:0.5 #1e3a8a, stop:1 #0d9488);
     }
     QFrame#AuthBox {
-        background-color: white;
-        border-radius: 16px;
-        border: 1px solid #e2e8f0;
+        background-color: rgba(255, 255, 255, 0.96);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.8);
     }
     QLabel {
-        font-family: 'Segoe UI', 'Inter', sans-serif;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
         color: #0f172a;
     }
     QLineEdit {
         border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        padding: 14px;
-        font-size: 15px;
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 14px;
         background-color: #f8fafc;
         color: #0f172a;
     }
     QLineEdit:focus {
-        border: 2px solid #2563eb;
+        border: 2px solid #0ea5e9;
         background-color: #ffffff;
-    }
-    QPushButton#PrimaryBtn {
-        background-color: #2563eb;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 14px;
-        font-size: 16px;
-        font-weight: 700;
-        font-family: 'Segoe UI', 'Inter', sans-serif;
-    }
-    QPushButton#PrimaryBtn:hover {
-        background-color: #1d4ed8;
     }
     QComboBox {
         border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        padding: 12px;
-        font-size: 15px;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 14px;
         background-color: #f8fafc;
+        color: #0f172a;
+    }
+    QPushButton#PrimaryBtn {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0ea5e9, stop:1 #0284c7);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 14px;
+        font-size: 16px;
+        font-weight: 800;
+    }
+    QPushButton#PrimaryBtn:hover {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284c7, stop:1 #0369a1);
+    }
+    QPushButton#DevBlockchainBtn {
+        background-color: rgba(15, 23, 42, 0.85);
+        color: #38bdf8;
+        border: 1px solid #0284c7;
+        border-radius: 10px;
+        padding: 10px 18px;
+        font-size: 13px;
+        font-weight: 700;
+    }
+    QPushButton#DevBlockchainBtn:hover {
+        background-color: #0284c7;
+        color: white;
     }
     QPushButton#SecondaryBtn {
         background-color: transparent;
-        color: #2563eb;
+        color: #0ea5e9;
         border: none;
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 600;
-        font-family: 'Segoe UI', 'Inter', sans-serif;
     }
     QPushButton#SecondaryBtn:hover {
-        color: #1d4ed8;
-        background-color: #eff6ff;
+        color: #0284c7;
+        background-color: #f0f9ff;
         border-radius: 6px;
     }
     QLabel#Title {
-        font-size: 28px;
+        font-size: 26px;
         font-weight: 800;
         color: #0f172a;
-        margin-bottom: 8px;
     }
 """

@@ -103,7 +103,11 @@ class ChatbotWidget(QWidget):
         self.first_chunk = True
         self.current_response_text = ""
         
-        model_name = "qwen2.5:3b"
+        try:
+            from src.services.model_selector import get_best_chat_model
+            model_name = get_best_chat_model()
+        except Exception:
+            model_name = "qwen2.5:3b"
         system_prompt = "You are a friendly health and wellness assistant. Provide general, safe advice. Never prescribe drugs natively. Warn the user to see a doctor for serious issues."
         
         self.worker = AIAssistantWorker(system_prompt, user_text, model_name)

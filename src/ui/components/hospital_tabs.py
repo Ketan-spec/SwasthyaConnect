@@ -354,3 +354,107 @@ class HospitalTreatmentWidget(QWidget):
             if add_treatment_update(patient_id, self.hospital_id, status, notes):
                 self.notes_input.clear()
                 self.load_data()
+
+class HospitalGrantWidget(QWidget):
+    def __init__(self, hospital_id):
+        super().__init__()
+        self.hospital_id = hospital_id
+        layout = QVBoxLayout(self)
+        
+        title = QLabel("🏛️ Government Resource & Budget Grant Applications")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0284c7;")
+        layout.addWidget(title)
+        
+        sub = QLabel("Submit formal budget & resource requests to Government Health Authority. Every request and disbursed amount is cryptographically sealed into a SHA-256 Blockchain block to prevent corruption or falsified values.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color: #64748b; font-size: 13px; margin-bottom: 10px;")
+        layout.addWidget(sub)
+        
+        # Form
+        form_frame = QWidget()
+        form_frame.setStyleSheet("background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px;")
+        flayout = QHBoxLayout(form_frame)
+        
+        self.cat_combo = QComboBox()
+        self.cat_combo.addItems(["ICU Beds & Monitors", "Oxygen Generator & Tanks", "Ventilator Units", "Emergency Medicines", "Dialysis Machines", "Ambulance Fleet"])
+        
+        self.qty_input = QLineEdit()
+        self.qty_input.setPlaceholderText("Quantity")
+        
+        self.amount_input = QLineEdit()
+        self.amount_input.setPlaceholderText("Requested Budget (₹)")
+        
+        self.reason_input = QLineEdit()
+        self.reason_input.setPlaceholderText("Justification / Reason")
+        
+        submit_btn = QPushButton("🔒 Submit Request to Govt (Block Sealed)")
+        submit_btn.setStyleSheet("background-color: #0284c7; color: white; font-weight: bold; padding: 8px 14px; border-radius: 6px;")
+        submit_btn.clicked.connect(self.submit_request)
+        
+        flayout.addWidget(self.cat_combo)
+        flayout.addWidget(self.qty_input)
+        flayout.addWidget(self.amount_input)
+        flayout.addWidget(self.reason_input)
+        flayout.addWidget(submit_btn)
+        
+        layout.addWidget(form_frame)
+        
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(["ID", "Category", "Qty", "Requested Budget (₹)", "Approved Budget (₹)", "Status", "Blockchain Sealed Hash"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table)
+        
+        self.load_data()
+
+    def load_data(self):
+        from src.database import get_resource_requests
+        rows = get_resource_requests(self.hospital_id)
+        self.table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            self.table.setItem(r, 0, QTableWidgetItem(str(row['id'])))
+            self.table.setItem(r, 1, QTableWidgetItem(str(row['resource_category'])))
+            self.table.setItem(r, 2, QTableWidgetItem(str(row['quantity'])))
+            self.table.setItem(r, 3, QTableWidgetItem(f"₹ {row['requested_amount']:,.2f}"))
+            self.table.setItem(r, 4, QTableWidgetItem(f"₹ {row['approved_amount']:,.2f}"))
+            
+            st_item = QTableWidgetItem(str(row['status']))
+            if row['status'] == 'Approved':
+                st_item.setForeground(Qt.GlobalColor.darkGreen)
+            elif row['status'] == 'Rejected':
+                st_item.setForeground(Qt.GlobalColor.red)
+            else:
+                st_item.setForeground(Qt.GlobalColor.darkYellow)
+            self.table.setItem(r, 5, st_item)
+            
+            hash_str = str(row.get('block_hash') or 'SHA-256 Sealed')
+            self.table.setItem(r, 6, QTableWidgetItem(hash_str[:18] + "..."))
+
+    def submit_request(self):
+        from src.database import create_resource_request, get_hospital_resources
+        cat = self.cat_combo.currentText()
+        try:
+            qty = int(self.qty_input.text().strip() or 0)
+            amount = float(self.amount_input.text().strip() or 0)
+        except ValueError:
+            QMessageBox.warning(self, "Error", "Quantity and Requested Budget must be numeric.")
+            return
+            
+        reason = self.reason_input.text().strip()
+        if qty <= 0 or amount <= 0 or not reason:
+            QMessageBox.warning(self, "Error", "Please fill in all fields with valid values.")
+            return
+            
+        res_info = get_hospital_resources(self.hospital_id) or {}
+        hname = res_info.get('hospital_name', f'Hospital #{self.hospital_id}')
+        
+        ok, msg = create_resource_request(self.hospital_id, hname, cat, qty, amount, reason)
+        if ok:
+            QMessageBox.information(self, "Success", msg)
+            self.qty_input.clear()
+            self.amount_input.clear()
+            self.reason_input.clear()
+            self.load_data()
+        else:
+            QMessageBox.warning(self, "Error", msg)

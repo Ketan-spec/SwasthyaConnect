@@ -59,7 +59,7 @@ class ReferralListWidget(QWidget):
         card.setStyleSheet("""
             QFrame {
                 background-color: white;
-                border_left: 4px solid #f59e0b;
+                border-left: 4px solid #f59e0b;
                 border: 1px solid #e2e8f0;
                 border-radius: 6px;
                 padding: 15px;

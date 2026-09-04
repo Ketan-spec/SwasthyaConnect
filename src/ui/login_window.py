@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QLineEdit, QPushButton, QMessageBox, 
-    QComboBox, QStackedWidget, QHBoxLayout, QFrame
+    QComboBox, QStackedWidget, QHBoxLayout, QFrame, QDialog
 )
 from PyQt6.QtCore import Qt
 from src.database import check_login, register_user, reset_database
@@ -9,28 +9,74 @@ from src.ui.dashboards.doctor_dashboard import DoctorDashboard
 from src.ui.dashboards.hospital_dashboard import HospitalDashboard
 from src.ui.dashboards.govt_dashboard import GovtDashboard
 from src.ui.styles import LOGIN_STYLES
-from src.ui.components.developer_panel import DeveloperBlockchainPanel, DEVELOPER_PASSWORD
+
+class DeveloperBlockchainDialog(QDialog):
+    """Developer Access Window allowing instant inspection of all system blockchain transactions."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("⛓️ Developer Access — SwasthyaConnect System Blockchain Explorer")
+        self.resize(1150, 750)
+        self.setMinimumSize(850, 550)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        try:
+            from src.ui.components.blockchain_viewer import BlockchainViewerWidget
+            self.viewer = BlockchainViewerWidget(patient_id=None)
+            layout.addWidget(self.viewer)
+        except Exception as e:
+            err_lbl = QLabel(f"Error opening Blockchain Explorer: {e}")
+            err_lbl.setStyleSheet("color: red; padding: 20px; font-size: 16px;")
+            layout.addWidget(err_lbl)
 
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Swasthya_Connect - Secure Authentication")
-        self.resize(1000, 700)
-        self.setMinimumSize(600, 500)
+        self.setObjectName("MainLoginBg")
+        self.setWindowTitle("SwasthyaConnect — AI & Blockchain Digital Health Platform")
+        self.resize(1100, 750)
+        self.setMinimumSize(750, 550)
         self.setStyleSheet(LOGIN_STYLES)
 
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
         
-        main_layout = QVBoxLayout()
-        main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # ── Top Bar (Healthcare Branding & Developer Blockchain Access) ──
+        top_bar = QHBoxLayout()
         
-        # Auth Box Container
+        brand_layout = QVBoxLayout()
+        brand_title = QLabel("🏥 SwasthyaConnect")
+        brand_title.setStyleSheet("color: white; font-size: 22px; font-weight: 800; font-family: 'Inter', sans-serif;")
+        brand_sub = QLabel("HDIMS Healthcare Information & Management System • AI & Blockchain Powered")
+        brand_sub.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: 500;")
+        brand_layout.addWidget(brand_title)
+        brand_layout.addWidget(brand_sub)
+        
+        top_bar.addLayout(brand_layout)
+        top_bar.addStretch()
+        
+        # Developer Access Button
+        dev_btn = QPushButton("⛓️ Developer Access: Blockchain Audit Log")
+        dev_btn.setObjectName("DevBlockchainBtn")
+        dev_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        dev_btn.setToolTip("Click to directly view tamper-proof system blockchain, transaction hashes, and all records across roles.")
+        dev_btn.clicked.connect(self.open_developer_blockchain)
+        top_bar.addWidget(dev_btn)
+        
+        main_layout.addLayout(top_bar)
+        main_layout.addStretch(1)
+        
+        # ── Centered Glassmorphic Auth Box ──
+        auth_container = QHBoxLayout()
+        auth_container.addStretch()
+        
         self.auth_box = QFrame()
         self.auth_box.setObjectName("AuthBox")
-        self.auth_box.setMinimumWidth(350)
-        self.auth_box.setMaximumWidth(450)
+        self.auth_box.setMinimumWidth(400)
+        self.auth_box.setMaximumWidth(480)
         
         box_layout = QVBoxLayout(self.auth_box)
-        box_layout.setContentsMargins(40, 40, 40, 40)
+        box_layout.setContentsMargins(35, 35, 35, 35)
         box_layout.setSpacing(15)
         
         # Stacked Widget to switch between Login and Signup
@@ -44,51 +90,38 @@ class LoginWindow(QWidget):
         
         box_layout.addWidget(self.stack)
         
+        auth_container.addWidget(self.auth_box)
+        auth_container.addStretch()
+        main_layout.addLayout(auth_container)
         
-        main_layout.addWidget(self.auth_box)
+        main_layout.addStretch(1)
         
-        # Add Reset Database Button to bottom
+        # ── Bottom Action Bar (Reset Database) ──
         reset_layout = QHBoxLayout()
         reset_layout.addStretch()
         reset_btn = QPushButton("⚠️ Reset Database")
         reset_btn.setToolTip("Danger: Deletes all data and resets the database from scratch.")
         reset_btn.setStyleSheet("""
             QPushButton { 
-                background-color: transparent; 
-                color: #ef4444; 
-                border: none;
+                background-color: rgba(239, 68, 68, 0.15); 
+                color: #fca5a5; 
+                border: 1px solid rgba(239, 68, 68, 0.4);
                 font-weight: bold;
-                padding: 10px;
+                padding: 6px 14px;
+                border-radius: 6px;
+                font-size: 12px;
             }
-            QPushButton:hover { background-color: #fee2e2; border-radius: 5px; }
+            QPushButton:hover { background-color: #ef4444; color: white; }
         """)
         reset_btn.clicked.connect(self.handle_db_reset)
         reset_layout.addWidget(reset_btn)
         
         main_layout.addLayout(reset_layout)
-        
-        # Developer Blockchain Access button
-        dev_layout = QHBoxLayout()
-        dev_btn = QPushButton("🔗 Developer Blockchain Audit")
-        dev_btn.setToolTip("Developer access to view all blockchain transactions (requires password)")
-        dev_btn.setStyleSheet("""
-            QPushButton { 
-                background-color: transparent; 
-                color: #6366f1; 
-                border: 1px solid #6366f1;
-                border-radius: 5px;
-                font-weight: bold;
-                padding: 8px 16px;
-            }
-            QPushButton:hover { background-color: #eef2ff; }
-        """)
-        dev_btn.clicked.connect(self.open_dev_panel)
-        dev_layout.addStretch()
-        dev_layout.addWidget(dev_btn)
-        dev_layout.addStretch()
-        main_layout.addLayout(dev_layout)
-        
-        self.setLayout(main_layout)
+
+    def open_developer_blockchain(self):
+        """Direct Developer Access to open system-wide Blockchain Audit Viewer."""
+        dialog = DeveloperBlockchainDialog(self)
+        dialog.exec()
 
     def handle_db_reset(self):
         reply = QMessageBox.question(
@@ -105,19 +138,6 @@ class LoginWindow(QWidget):
             else:
                 QMessageBox.critical(self, "Reset Error", msg)
 
-    def open_dev_panel(self):
-        from PyQt6.QtWidgets import QInputDialog
-        password, ok = QInputDialog.getText(
-            self, "Developer Access",
-            "Enter developer password:",
-            QLineEdit.EchoMode.Password
-        )
-        if ok and password == DEVELOPER_PASSWORD:
-            panel = DeveloperBlockchainPanel(self)
-            panel.exec()
-        elif ok:
-            QMessageBox.warning(self, "Access Denied", "Incorrect developer password.")
-
     def create_login_ui(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -127,15 +147,15 @@ class LoginWindow(QWidget):
         title.setObjectName("Title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        subtitle = QLabel("Please sign in to continue")
-        subtitle.setObjectName("Subtitle")
+        subtitle = QLabel("Select role & sign in to continue")
+        subtitle.setStyleSheet("color: #64748b; font-size: 13px; margin-bottom: 15px;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         layout.addWidget(title)
         layout.addWidget(subtitle)
         
         self.login_user_input = QLineEdit()
-        self.login_user_input.setPlaceholderText("Phone (Patients) or Email/ID (Others)")
+        self.login_user_input.setPlaceholderText("Phone (Patients) or Username/ID (Others)")
         layout.addWidget(self.login_user_input)
         
         self.login_pass_input = QLineEdit()
@@ -158,7 +178,6 @@ class LoginWindow(QWidget):
         layout.addStretch()
         return widget
 
-    
     def create_signup_ui(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
@@ -168,8 +187,8 @@ class LoginWindow(QWidget):
         title.setObjectName("Title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        subtitle = QLabel("Join Swasthya_Connect")
-        subtitle.setObjectName("Subtitle")
+        subtitle = QLabel("Join SwasthyaConnect Digital Platform")
+        subtitle.setStyleSheet("color: #64748b; font-size: 13px; margin-bottom: 15px;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         layout.addWidget(title)
@@ -234,19 +253,18 @@ class LoginWindow(QWidget):
             "Andhra Pradesh", "Telangana", "Kerala", "Punjab", "Haryana", "Odisha", "Other"
         ]
         self.state_combo.addItems(INDIAN_STATES)
-        # Enforcing Black Text for State Selection
         self.state_combo.setStyleSheet("""
             QComboBox {
                 color: black;
                 background-color: white;
                 border: 1px solid #cbd5e1;
-                padding: 5px;
+                padding: 8px;
                 border-radius: 5px;
             }
             QComboBox QAbstractItemView {
                 color: black;
                 background-color: white;
-                selection-background-color: #3b82f6;
+                selection-background-color: #0ea5e9;
             }
         """)
 
@@ -276,7 +294,7 @@ class LoginWindow(QWidget):
         elif role == "Doctor":
             self.dynamic_fields_layout.addWidget(self.email_input)
             self.dynamic_fields_layout.addWidget(self.id_input)
-            self.dynamic_fields_layout.addWidget(self.spec_combo) # Add Spec
+            self.dynamic_fields_layout.addWidget(self.spec_combo)
             self.dynamic_fields_layout.addWidget(create_state_label())
             self.dynamic_fields_layout.addWidget(self.state_combo)
             self.fullname_input.setPlaceholderText("Doctor Name")
@@ -291,7 +309,6 @@ class LoginWindow(QWidget):
         elif role == "Government":
             self.dynamic_fields_layout.addWidget(self.email_input)
             self.dynamic_fields_layout.addWidget(self.id_input)
-            # No State for Govt
             self.fullname_input.setPlaceholderText("Officer Name")
             self.id_input.setPlaceholderText("Govt Officer ID")
 
@@ -334,7 +351,7 @@ class LoginWindow(QWidget):
             if not phone:
                 QMessageBox.warning(self, "Error", "Phone number is required.")
                 return
-            username = phone # Use phone as username for patient
+            username = phone
             state = self.state_combo.currentText()
         else:
             email = self.email_input.text()
@@ -342,7 +359,7 @@ class LoginWindow(QWidget):
             if not email or not unique_id:
                 QMessageBox.warning(self, "Error", "Email and ID are required.")
                 return
-            username = email # Use email as username for others
+            username = email
             if role != "govt":
                 state = self.state_combo.currentText()
             
@@ -355,10 +372,11 @@ class LoginWindow(QWidget):
             QMessageBox.information(self, "Success", f"Account created! Your Login ID is: {username}")
             self.stack.setCurrentWidget(self.login_widget)
         else:
-            QMessageBox.warning(self, "Registration Failed", message)
+            QMessageBox.warning(self, "Signup Failed", message)
 
     def open_dashboard(self, user_data):
-        role = user_data['role']
+        role = user_data.get('role', '').lower()
+        
         if role == 'patient':
             self.dashboard = PatientDashboard(user_data, self.handle_logout)
         elif role == 'doctor':
@@ -368,13 +386,15 @@ class LoginWindow(QWidget):
         elif role == 'govt':
             self.dashboard = GovtDashboard(user_data, self.handle_logout)
         else:
+            QMessageBox.critical(self, "Error", f"Unknown user role: {role}")
             return
             
         self.dashboard.show()
-        self.close()
+        self.hide()
 
     def handle_logout(self):
-        self.dashboard.close()
-        self.show()
+        if hasattr(self, 'dashboard') and self.dashboard:
+            self.dashboard.close()
         self.login_user_input.clear()
         self.login_pass_input.clear()
+        self.show()

@@ -2,7 +2,9 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, 
     QTableWidgetItem, QHeaderView, QLineEdit, QMessageBox, QScrollArea, QFrame, QFileDialog
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices
+from src.ui.components.medibrief_dialog import MedibriefViewerDialog
 from src.database import DB_NAME, get_treatment_updates, get_patient_prescriptions, get_patient_all_medicine_names
 import sqlite3
 import json
@@ -32,8 +34,8 @@ class RecordsWidget(QWidget):
         
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Date", "Title", "Description"])
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Date", "Title", "Description", "View"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table)
         
@@ -51,19 +53,43 @@ class RecordsWidget(QWidget):
         try:
             conn = sqlite3.connect(DB_NAME, timeout=10.0)
             c = conn.cursor()
-            c.execute("SELECT date_added, title, description FROM medical_records WHERE patient_id = ? AND record_type = 'Report' ORDER BY date_added DESC", (self.user_id,))
+            # Fetch file_path to enable viewing the saved PDF/report
+            c.execute("SELECT date_added, title, description, file_path, summary_json FROM medical_records WHERE patient_id = ? AND record_type = 'Report' ORDER BY date_added DESC", (self.user_id,))
             rows = c.fetchall()
             conn.close()
             
             self.table.setRowCount(len(rows))
             for r, row in enumerate(rows):
-                for c, val in enumerate(row):
-                    # date_added usually contains datetime, split to extract date
-                    if c == 0 and val: val = val.split(" ")[0]
-                    self.table.setItem(r, c, QTableWidgetItem(str(val)))
+                date_val, title_val, desc_val, file_path, summary_json = row
+                # Populate Date, Title, Description columns
+                self.table.setItem(r, 0, QTableWidgetItem(str(date_val).split(" ")[0] if date_val else ""))
+                self.table.setItem(r, 1, QTableWidgetItem(str(title_val) if title_val else ""))
+                self.table.setItem(r, 2, QTableWidgetItem(str(desc_val) if desc_val else ""))
+                # Add View button in the fourth column
+                view_btn = QPushButton("View")
+                view_btn.setStyleSheet("background-color: #475569; color: white; padding: 4px 8px; border-radius: 3px;")
+                # Connect to viewer dialog using summary_json and title
+                view_btn.clicked.connect(lambda _, s=summary_json, t=title_val: self.view_record(s, t))
+                self.table.setCellWidget(r, 3, view_btn)
         except Exception as e:
-            pass
+            print(f"Error loading medical records: {e}")
 
+    def view_record(self, summary_json, title):
+        """Open a viewer dialog for the given summary JSON and title."""
+        if not summary_json:
+            QMessageBox.warning(self, "No Data", "No summary data available for this record.")
+            return
+        try:
+            # summary_json may be stored as JSON string; ensure it's a dict
+            if isinstance(summary_json, str):
+                import json as _json
+                summary = _json.loads(summary_json)
+            else:
+                summary = summary_json
+            dialog = MedibriefViewerDialog(self, summary, title=title)
+            dialog.exec()
+        except Exception as exc:
+            QMessageBox.critical(self, "Viewer Error", f"Failed to open viewer: {exc}")
 class AppointmentsWidget(QWidget):
     def __init__(self, user_id):
         super().__init__()
@@ -241,23 +267,12 @@ class TreatmentStatusWidget(QWidget):
         self.user_id = user_id
         layout = QVBoxLayout(self)
         
-        # Header
-        header_layout = QHBoxLayout()
         title = QLabel("My Treatment Tracking")
         title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
-        header_layout.addWidget(title)
+        layout.addWidget(title)
         
-        refresh_btn = QPushButton("🔄 Refresh")
-        refresh_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 6px 14px; border-radius: 5px; font-weight: bold;")
-        refresh_btn.clicked.connect(self.load_data)
-        header_layout.addStretch()
-        header_layout.addWidget(refresh_btn)
-        layout.addLayout(header_layout)
-        
-        # Current status banner
         self.current_status_label = QLabel("Current Status: None")
-        self.current_status_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b; background-color: #f1f5f9; padding: 12px; border-radius: 7px; border-left: 5px solid #94a3b8;")
-        self.current_status_label.setWordWrap(True)
+        self.current_status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background-color: #f1f5f9; padding: 10px; border-radius: 5px;")
         layout.addWidget(self.current_status_label)
         
         history_title = QLabel("Treatment History")
@@ -266,9 +281,8 @@ class TreatmentStatusWidget(QWidget):
         
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Date/Time", "Status", "Notes", "Updated By (Doctor)", "Role"])
+        self.table.setHorizontalHeaderLabels(["Date/Time", "Status", "Notes", "Updated By", "Role"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.setAlternatingRowColors(True)
         layout.addWidget(self.table)
         
         self.load_data()
@@ -278,51 +292,23 @@ class TreatmentStatusWidget(QWidget):
             updates = get_treatment_updates(self.user_id)
             if updates:
                 latest = updates[0]
-                status = latest['status']
-                color_map = {
-                    'completed': '#10b981', 'discharged': '#10b981',
-                    'in progress': '#3b82f6', 'delayed': '#ef4444',
-                    'not started': '#94a3b8'
-                }
-                color = color_map.get(status.lower(), '#94a3b8')
-                self.current_status_label.setText(
-                    f"Current Status: {status}\n"
-                    f"Last updated by: Dr. {latest['updated_by_name']}\n"
-                    f"Notes: {latest['notes']}"
-                )
-                self.current_status_label.setStyleSheet(
-                    f"font-size: 15px; font-weight: bold; color: #1e293b; "
-                    f"background-color: #f1f5f9; padding: 12px; border-radius: 7px; "
-                    f"border-left: 5px solid {color};"
-                )
+                self.current_status_label.setText(f"Current Status: {latest['status']} (Updated by {latest['updated_by_name']}, {latest['updated_by_role']})\nNotes: {latest['notes']}")
+                if latest['status'].lower() in ['completed', 'discharged']:
+                    self.current_status_label.setStyleSheet(self.current_status_label.styleSheet() + "border-left: 5px solid #10b981;")
+                else:
+                    self.current_status_label.setStyleSheet(self.current_status_label.styleSheet() + "border-left: 5px solid #3b82f6;")
             else:
-                self.current_status_label.setText("No active or historical treatments found. Ask your doctor to log a treatment update.")
-                self.current_status_label.setStyleSheet(
-                    "font-size: 14px; color: #64748b; background-color: #f8fafc; "
-                    "padding: 12px; border-radius: 7px; border-left: 5px solid #cbd5e1;"
-                )
+                self.current_status_label.setText("No active or historical treatments found.")
                 
             self.table.setRowCount(len(updates))
             for r, row in enumerate(updates):
-                ts = str(row['timestamp'])[:16] if row['timestamp'] else ''
-                self.table.setItem(r, 0, QTableWidgetItem(ts))
-                
-                status_item = QTableWidgetItem(str(row['status']))
-                status_val = row['status'].lower()
-                if 'complete' in status_val or 'discharged' in status_val:
-                    status_item.setForeground(Qt.GlobalColor.darkGreen)
-                elif 'progress' in status_val:
-                    status_item.setForeground(Qt.GlobalColor.darkBlue)
-                elif 'delay' in status_val:
-                    status_item.setForeground(Qt.GlobalColor.red)
-                self.table.setItem(r, 1, status_item)
-                
+                self.table.setItem(r, 0, QTableWidgetItem(str(row['timestamp'])))
+                self.table.setItem(r, 1, QTableWidgetItem(str(row['status'])))
                 self.table.setItem(r, 2, QTableWidgetItem(str(row['notes'])))
-                self.table.setItem(r, 3, QTableWidgetItem(f"Dr. {row['updated_by_name']}"))
-                self.table.setItem(r, 4, QTableWidgetItem(str(row['updated_by_role']).title()))
+                self.table.setItem(r, 3, QTableWidgetItem(str(row['updated_by_name'])))
+                self.table.setItem(r, 4, QTableWidgetItem(str(row['updated_by_role'])))
         except Exception as e:
-            print(f"Error loading treatment updates: {e}")
-
+            pass
 
 
 class MedicineVerificationWidget(QWidget):
@@ -403,7 +389,8 @@ class MedicineVerificationWidget(QWidget):
         for r, row in enumerate(self.current_results):
             self.table.setItem(r, 0, QTableWidgetItem(str(row.get("name", ""))))
             self.table.setItem(r, 1, QTableWidgetItem(str(row.get("manufacturer_name", ""))))
-            self.table.setItem(r, 2, QTableWidgetItem(str(row.get("salt_composition", ""))))
+            comp_text = row.get("salt_composition") or row.get("short_composition1") or row.get("short_composition2") or ""
+            self.table.setItem(r, 2, QTableWidgetItem(str(comp_text)))
             price = row.get("price", "N/A")
             self.table.setItem(r, 3, QTableWidgetItem(f"₹ {price}"))
 
@@ -414,7 +401,7 @@ class MedicineVerificationWidget(QWidget):
         med_data = self.current_results[row]
         
         name = med_data.get("name", "")
-        composition = med_data.get("salt_composition", "")
+        composition = med_data.get("salt_composition") or med_data.get("short_composition1") or med_data.get("short_composition2") or ""
         description = med_data.get("medicine_desc", "")
         side_effects = med_data.get("side_effects", "")
         
@@ -432,7 +419,13 @@ class MedicineVerificationWidget(QWidget):
         # Start AI Streaming
         self.first_chunk = True
         self.current_response_text = ""
-        self.worker = AIAssistantWorker(system_prompt, question, "qwen2.5:3b")
+        try:
+            from src.services.model_selector import get_best_chat_model
+            model_name = get_best_chat_model()
+        except Exception:
+            model_name = "qwen2.5:3b"
+            
+        self.worker = AIAssistantWorker(system_prompt, question, model_name)
         self.worker.chunk_received.connect(self.on_ai_chunk)
         self.worker.finished_stream.connect(self.on_ai_finished)
         self.worker.start()

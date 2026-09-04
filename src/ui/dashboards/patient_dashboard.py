@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QFrame, QGridLayout, QStackedWidget,
-    QSizePolicy, QScrollArea
+    QSizePolicy, QScrollArea, QComboBox
 )
 from src.ui.styles import get_sidebar_style, CONTENT_STYLE
 from src.ui.components.chatbot import ChatbotWidget
@@ -11,123 +11,16 @@ from src.ui.components.patient_tabs import (
     RecordsWidget, AppointmentsWidget, PrescriptionsWidget, 
     SettingsWidget, TreatmentStatusWidget, MedicineVerificationWidget
 )
-from src.ui.components.blockchain_viewer import BlockchainViewerWidget
-from src.database import get_patient_dashboard_stats, get_patient_analytics, get_aggregated_patient_data, get_patient_disease_trend, get_patient_vitals_timeline, get_patient_symptoms_history
+from src.database import (
+    get_patient_dashboard_stats, get_patient_analytics, get_aggregated_patient_data, 
+    get_patient_disease_trend, get_patient_vitals_timeline, get_active_medications_count,
+    get_patient_timeline, set_user_language, get_user_language
+)
+from src.services.translation_service import SUPPORTED_LANGS
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath
 import random
-
-class AI_NodeGraph(QWidget):
-    def __init__(self, diseases=[]):
-        super().__init__()
-        self.setMinimumHeight(200)
-        self.nodes = []
-        
-        # Build dynamic nodes if we have data, otherwise mock
-        if diseases:
-            colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"]
-            start_x = 50
-            start_y = 100
-            for i, d in enumerate(diseases[:5]): # max 5 nodes
-                self.nodes.append({"id": d[:15], "x": start_x + (i*150), "y": start_y + (i%2)*50, "color": colors[i%len(colors)]})
-        else:
-            self.nodes = [
-                {"id": "No Data", "x": 100, "y": 100, "color": "#cbd5e1"}
-            ]
-        
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Draw lines
-        pen = QPen(QColor("#cbd5e1"), 2)
-        painter.setPen(pen)
-        for i in range(len(self.nodes) - 1):
-            n1 = self.nodes[i]
-            n2 = self.nodes[i+1]
-            
-            # Draw curved line
-            path = QPainterPath(QPointF(n1['x']+10, n1['y']))
-            path.cubicTo(n1['x'] + 50, n1['y'], n2['x'] - 50, n2['y'], n2['x'], n2['y'])
-            painter.drawPath(path)
-            
-        # Draw nodes
-        for node in self.nodes:
-            painter.setBrush(QBrush(QColor(node['color'])))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(node['x']-15, node['y']-15, 30, 30)
-            
-            painter.setPen(QColor("#1e293b"))
-            painter.setFont(QFont("Inter", 10, QFont.Weight.Bold))
-            painter.drawText(node['x']-20, node['y']+30, node['id'])
-
-class SymptomHeatmap(QWidget):
-    def __init__(self, patient_id):
-        super().__init__()
-        self.setMinimumHeight(150)
-        self.patient_id = patient_id
-        self.symptoms = []
-        self.weekly_grid = {}
-        
-        history = get_patient_symptoms_history(self.patient_id)
-        
-        unique_symptoms = list(set([h["symptom"] for h in history]))[:5]
-        if not unique_symptoms:
-            self.symptoms = ["No Data Yet"]
-            self.weekly_grid = {"No Data Yet": [0]*12}
-        else:
-            self.symptoms = [s[:15] for s in unique_symptoms]
-            from datetime import datetime
-            now = datetime.now()
-            
-            for sym in self.symptoms:
-                self.weekly_grid[sym] = [0]*12
-                
-            for h in history:
-                sym_name = h["symptom"][:15]
-                if sym_name not in self.weekly_grid:
-                    continue
-                try:
-                    recorded_dt = datetime.strptime(h["date"].split(" ")[0], "%Y-%m-%d")
-                    diff_days = (now - recorded_dt).days
-                    week_index = 11 - (diff_days // 7)
-                    if 0 <= week_index <= 11:
-                        self.weekly_grid[sym_name][week_index] += 1
-                except Exception:
-                    pass
-        
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        cell_size = 20
-        margin_left = 100
-        margin_top = 20
-        
-        painter.setPen(QColor("#64748b"))
-        painter.setFont(QFont("Inter", 10))
-        
-        # Draw weeks header
-        for w in range(12):
-            painter.drawText(margin_left + w*25, 15, f"W{w+1}")
-            
-        # Draw grid
-        for i, sym in enumerate(self.symptoms):
-            painter.setPen(QColor("#1e293b"))
-            painter.drawText(5, margin_top + i*25 + 15, sym)
-            
-            painter.setPen(Qt.PenStyle.NoPen)
-            intensities = self.weekly_grid.get(sym, [0]*12)
-            for w in range(12):
-                count = intensities[w]
-                if count > 3: color = "#ef4444"
-                elif count > 1: color = "#fcd34d"
-                elif count > 0: color = "#86efac"
-                else: color = "#e2e8f0"
-                
-                painter.setBrush(QBrush(QColor(color)))
-                painter.drawRoundedRect(margin_left + w*25, margin_top + i*25, cell_size, cell_size, 3, 3)
 
 class RadialProgress(QWidget):
     def __init__(self, percentage, title):
@@ -231,9 +124,31 @@ class PatientDashboard(QWidget):
         title_label.setObjectName("SidebarTitle")
         sidebar_layout.addWidget(title_label)
         
+        # Language Selector in sidebar
+        lang_frame = QFrame()
+        lang_frame.setStyleSheet("background: rgba(255,255,255,0.08); padding: 5px; margin: 5px;")
+        lang_layout = QHBoxLayout(lang_frame)
+        lang_layout.setContentsMargins(8, 4, 8, 4)
+        lang_lbl = QLabel("🌐")
+        lang_lbl.setStyleSheet("color: white; font-size: 16px;")
+        self.lang_combo = QComboBox()
+        self.lang_combo.setStyleSheet("background: white; color: #1e293b; padding: 3px; border-radius: 3px; font-size: 12px;")
+        for code, name in SUPPORTED_LANGS.items():
+            self.lang_combo.addItem(name, code)
+        # Set current language from DB
+        current_lang = get_user_language(self.user_data['id'])
+        for i in range(self.lang_combo.count()):
+            if self.lang_combo.itemData(i) == current_lang:
+                self.lang_combo.setCurrentIndex(i)
+                break
+        self.lang_combo.currentIndexChanged.connect(self._on_language_changed)
+        lang_layout.addWidget(lang_lbl)
+        lang_layout.addWidget(self.lang_combo)
+        sidebar_layout.addWidget(lang_frame)
+        
         # Menu Items
         self.menu_btns = {}
-        menu_items = ["Dashboard", "AI Assistant", "Find Doctor", "My Records", "Appointments", "Prescriptions", "Treatment Status", "Medicine Verification", "Blockchain Integrity", "Settings"]
+        menu_items = ["Dashboard", "AI Assistant", "Find Doctor", "My Records", "Appointments", "Prescriptions", "Treatment Status", "Medicine Verification", "🔗 Health Integrity", "Settings"]
         
         for item in menu_items:
             btn = QPushButton(item)
@@ -294,18 +209,28 @@ class PatientDashboard(QWidget):
         self.med_verify_page = MedicineVerificationWidget(self.user_data['id'])
         self.stack.addWidget(self.med_verify_page)
 
-        # Page 9: Settings
+        # Page 9: Health Record Integrity (Blockchain)
+        try:
+            from src.ui.components.blockchain_viewer import BlockchainViewerWidget
+            self.blockchain_page = BlockchainViewerWidget(self.user_data['id'])
+        except Exception as e:
+            self.blockchain_page = QLabel(f"Blockchain viewer error: {e}")
+        self.stack.addWidget(self.blockchain_page)
+
+        # Page 10: Settings
         self.settings_page = SettingsWidget(self.user_data)
         self.stack.addWidget(self.settings_page)
-
-        # Page 10: Blockchain Integrity
-        self.blockchain_page = BlockchainViewerWidget(self.user_data['id'])
-        self.stack.addWidget(self.blockchain_page)
 
         main_layout.addWidget(self.sidebar)
         main_layout.addWidget(self.content_area)
         
         self.setLayout(main_layout)
+
+    def _on_language_changed(self, index):
+        """Save language preference to DB when changed."""
+        lang_code = self.lang_combo.itemData(index)
+        if lang_code:
+            set_user_language(self.user_data['id'], lang_code)
 
     def switch_page(self, page_name):
         # Uncheck all others
@@ -335,10 +260,12 @@ class PatientDashboard(QWidget):
             self.stack.setCurrentIndex(6)
         elif page_name == "Medicine Verification":
             self.stack.setCurrentIndex(7)
-        elif page_name == "Settings":
+        elif page_name == "🔗 Health Integrity":
+            # Refresh blockchain data on each visit
+            if hasattr(self.blockchain_page, 'load_data'):
+                self.blockchain_page.load_data()
             self.stack.setCurrentIndex(8)
-        elif page_name == "Blockchain Integrity":
-            self.blockchain_page.load_data()
+        elif page_name == "Settings":
             self.stack.setCurrentIndex(9)
 
     def create_home_page(self):
@@ -356,104 +283,64 @@ class PatientDashboard(QWidget):
         content_layout.setContentsMargins(30, 30, 30, 30)
         content_layout.setSpacing(25)
         
-        # Welcome
+        # ── Welcome Header ──
         header_layout = QVBoxLayout()
-        welcome_msg = QLabel(f"Good morning, {self.user_data['full_name']}")
+        import datetime
+        hour = datetime.datetime.now().hour
+        greeting = "Good morning" if hour < 12 else ("Good afternoon" if hour < 17 else "Good evening")
+        welcome_msg = QLabel(f"{greeting}, {self.user_data['full_name']}")
         welcome_msg.setStyleSheet("font-size: 32px; font-weight: 800; color: #0f172a;")
         header_layout.addWidget(welcome_msg)
         
-        subtitle = QLabel("Your AI Health Control Center is up to date.")
+        subtitle = QLabel("Your AI Health Control Center — All your medical history in one place.")
         subtitle.setStyleSheet("font-size: 16px; color: #64748b;")
         header_layout.addWidget(subtitle)
         content_layout.addLayout(header_layout)
         
-        # 1. Top Health Summary Cards
+        # ── 1. Top Health Summary Cards ──
         stats = get_patient_dashboard_stats(self.user_data['id'])
         agg_data = get_aggregated_patient_data(self.user_data['id'])
-        vitals_timeline = get_patient_vitals_timeline(self.user_data['id'])
-        
-        # Calculate real dynamic progression & risk indices based on vitals
-        sys_bps = []
-        dia_bps = []
-        heart_rates = []
-        for entry in vitals_timeline:
-            bp = entry.get("blood_pressure")
-            hr = entry.get("heart_rate")
-            if bp and "/" in str(bp):
-                try:
-                    parts = str(bp).split("/")
-                    sys_bps.append(float(parts[0].strip()))
-                    dia_bps.append(float(parts[1].split()[0].strip()))
-                except Exception:
-                    pass
-            if hr:
-                try:
-                    heart_rates.append(float(str(hr).replace("bpm", "").replace("bpm", "").strip()))
-                except Exception:
-                    pass
-        
-        hypertension_val = 0
-        if sys_bps:
-            max_sys = max(sys_bps)
-            max_dia = max(dia_bps) if dia_bps else 80
-            if max_sys > 160 or max_dia > 100: hypertension_val = 85
-            elif max_sys > 140 or max_dia > 90: hypertension_val = 60
-            elif max_sys > 120 or max_dia > 80: hypertension_val = 35
-            else: hypertension_val = 15
-        elif agg_data["has_data"] and "Hypertension" in agg_data["conditions"]:
-            hypertension_val = 45
-            
-        cardiac_val = 0
-        if heart_rates or sys_bps:
-            hr_risk = 0
-            bp_risk = 0
-            if heart_rates:
-                avg_hr = sum(heart_rates)/len(heart_rates)
-                if avg_hr > 100 or avg_hr < 60: hr_risk = 40
-                elif avg_hr > 90 or avg_hr < 65: hr_risk = 20
-            if sys_bps:
-                avg_sys = sum(sys_bps)/len(sys_bps)
-                if avg_sys > 150: bp_risk = 45
-                elif avg_sys > 135: bp_risk = 25
-            cardiac_val = min(hr_risk + bp_risk + 10, 95)
-        elif agg_data["has_data"]:
-            cardiac_val = 15
-
-        risk_score = 100 - max(hypertension_val, cardiac_val) if agg_data["has_data"] else 100
+        med_count = get_active_medications_count(self.user_data['id'])
         
         top_cards_layout = QGridLayout()
         top_cards_layout.setSpacing(15)
         
+        risk_score = agg_data["risk_score"]
         score_color = "#10b981" if risk_score > 70 else ("#f59e0b" if risk_score > 40 else "#ef4444")
-        
         active_conditions_count = len(agg_data["conditions"])
         
-        if agg_data["has_data"]:
-            adherence_text = "92%" # Will make this dynamic later if tracking adherence
-        else:
-            adherence_text = "N/A"
-            
         card_data = [
-            ("Health Stability", f"{risk_score}/100" if agg_data["has_data"] else "N/A", score_color, "Overall AI assessment"),
-            ("Active Conditions", str(active_conditions_count), "#f59e0b", "Currently managed"),
-            ("Adherence", adherence_text, "#0ea5e9", "Medication schedule"),
-            ("Upcoming Appt", str(stats['appointments']), "#8b5cf6", "Scheduled visits"),
+            ("Health Stability", f"{risk_score}/100" if agg_data["has_data"] else "N/A", score_color, "AI assessment"),
+            ("Active Conditions", str(active_conditions_count), "#f59e0b", "Currently tracked"),
+            ("Active Medications", str(med_count), "#8b5cf6", "From prescriptions"),
+            ("Reports Uploaded", str(agg_data['record_count']), "#0ea5e9", "Analyzer status"),
+            ("Appointments", str(stats['appointments']), "#6366f1", "Total visits"),
             ("Emergency Risk", ("Low" if risk_score > 60 else "Elevated") if agg_data["has_data"] else "N/A", score_color, "Based on vitals"),
-            ("Last Report", f"{agg_data['record_count']} uploaded", "#64748b", "Analyzer status")
         ]
         
         row, col = 0, 0
         for title, val, color, sub in card_data:
             c = QFrame()
             c.setObjectName("Card")
-            c.setMinimumHeight(110)
+            c.setMinimumHeight(100)
+            c.setStyleSheet("""
+                QFrame#Card {
+                    background-color: white;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    padding: 15px;
+                }
+                QFrame#Card:hover {
+                    border-color: #3b82f6;
+                }
+            """)
             cl = QVBoxLayout(c)
             t_lbl = QLabel(title)
-            t_lbl.setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; text-transform: uppercase;")
+            t_lbl.setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; text-transform: uppercase;")
             v_lbl = QLabel(val)
             v_lbl.setStyleSheet(f"color: {color}; font-size: 26px; font-weight: 800;")
             s_lbl = QLabel(sub)
-            s_lbl.setStyleSheet("color: #94a3b8; font-size: 12px;")
+            s_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
             cl.addWidget(t_lbl)
             cl.addWidget(v_lbl)
             cl.addWidget(s_lbl)
@@ -465,53 +352,133 @@ class PatientDashboard(QWidget):
                 
         content_layout.addLayout(top_cards_layout)
         
-        # 2. Interactive Medical Timeline (MAIN SECTION)
-        timeline_lbl = QLabel("Interactive Medical Timeline")
-        timeline_lbl.setStyleSheet("font-size: 18px; font-weight: bold; color: #1e293b; margin-top: 15px;")
-        content_layout.addWidget(timeline_lbl)
+        # ── 2. Date-Based Medical Timeline (Main Section) ──
+        timeline_header = QLabel("📅 Medical History Timeline")
+        timeline_header.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e293b; margin-top: 15px;")
+        content_layout.addWidget(timeline_header)
         
-        timeline_scroll = QScrollArea()
-        timeline_scroll.setFixedHeight(120)
-        timeline_scroll.setWidgetResizable(True)
-        timeline_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        timeline_data = get_patient_timeline(self.user_data['id'])
         
-        t_container = QWidget()
-        t_layout = QHBoxLayout(t_container)
-        
-        if agg_data["conditions"]:
-            events = [c[:30] for c in agg_data["conditions"][:5]]
-        else:
-            events = ["No Medical History Found"]
+        if timeline_data:
+            timeline_container = QFrame()
+            timeline_container.setStyleSheet("background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 15px;")
+            timeline_layout = QVBoxLayout(timeline_container)
+            timeline_layout.setSpacing(0)
             
-        for ev in events:
-            frm = QFrame()
-            frm.setStyleSheet("background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px;")
-            frm.setMinimumWidth(200)
-            fl = QVBoxLayout(frm)
-            l1 = QLabel(ev)
-            l1.setStyleSheet("font-weight: bold; color: #0d9488;")
-            fl.addWidget(l1)
-            t_layout.addWidget(frm)
+            # Group by date
+            current_date = None
+            shown_count = 0
+            max_events = 15  # Limit to prevent overload
             
-            # line connecting
-            if ev != events[-1]:
-                line = QFrame()
-                line.setFrameShape(QFrame.Shape.HLine)
-                line.setStyleSheet("border-top: 2px dashed #94a3b8;")
-                line.setMinimumWidth(30)
-                t_layout.addWidget(line)
+            for event in timeline_data:
+                if shown_count >= max_events:
+                    break
                 
-        t_layout.addStretch()
-        timeline_scroll.setWidget(t_container)
-        content_layout.addWidget(timeline_scroll)
+                event_date = event["date"]
+                
+                # Date separator
+                if event_date != current_date:
+                    current_date = event_date
+                    date_label = QLabel(f"📅 {event_date}" if event_date else "📅 Unknown Date")
+                    date_label.setStyleSheet("""
+                        font-size: 14px; font-weight: bold; color: #0f766e; 
+                        background-color: #f0fdfa; padding: 8px 12px; border-radius: 6px;
+                        margin-top: 10px; margin-bottom: 5px;
+                    """)
+                    timeline_layout.addWidget(date_label)
+                
+                # Event card
+                event_frame = QFrame()
+                source = event.get("source", "record")
+                if source == "record":
+                    border_color = "#0ea5e9"
+                    icon = "📋" if event["type"] == "Report" else "💊"
+                elif source == "appointment":
+                    border_color = "#8b5cf6"
+                    icon = "🩺"
+                else:
+                    border_color = "#f59e0b"
+                    icon = "🏥"
+                
+                event_frame.setStyleSheet(f"""
+                    QFrame {{
+                        background: #fafafa;
+                        border-left: 4px solid {border_color};
+                        border-radius: 6px;
+                        padding: 10px;
+                        margin-left: 20px;
+                        margin-bottom: 4px;
+                    }}
+                """)
+                ev_layout = QVBoxLayout(event_frame)
+                ev_layout.setContentsMargins(10, 6, 10, 6)
+                ev_layout.setSpacing(3)
+                
+                # Title row
+                title_row = QHBoxLayout()
+                ev_icon = QLabel(icon)
+                ev_icon.setStyleSheet("font-size: 16px;")
+                ev_title = QLabel(str(event["title"])[:60])
+                ev_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #1e293b;")
+                ev_type = QLabel(str(event["type"]))
+                ev_type.setStyleSheet(f"color: {border_color}; font-size: 11px; font-weight: bold; background: #f1f5f9; padding: 2px 8px; border-radius: 3px;")
+                title_row.addWidget(ev_icon)
+                title_row.addWidget(ev_title)
+                title_row.addStretch()
+                title_row.addWidget(ev_type)
+                ev_layout.addLayout(title_row)
+                
+                # Description
+                if event.get("description"):
+                    desc_lbl = QLabel(str(event["description"])[:100])
+                    desc_lbl.setStyleSheet("color: #64748b; font-size: 12px;")
+                    desc_lbl.setWordWrap(True)
+                    ev_layout.addWidget(desc_lbl)
+                
+                # Diagnosis chips
+                diagnosis = event.get("diagnosis", [])
+                if diagnosis:
+                    diag_row = QHBoxLayout()
+                    for d in diagnosis[:3]:
+                        if d:
+                            chip = QLabel(str(d)[:30])
+                            chip.setStyleSheet("background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-size: 11px;")
+                            diag_row.addWidget(chip)
+                    diag_row.addStretch()
+                    ev_layout.addLayout(diag_row)
+                
+                # Key findings
+                findings = event.get("key_findings", [])
+                if findings:
+                    for f in findings[:2]:
+                        if f:
+                            f_lbl = QLabel(f"  • {str(f)[:80]}")
+                            f_lbl.setStyleSheet("color: #475569; font-size: 11px;")
+                            f_lbl.setWordWrap(True)
+                            ev_layout.addWidget(f_lbl)
+                
+                timeline_layout.addWidget(event_frame)
+                shown_count += 1
+            
+            if len(timeline_data) > max_events:
+                more_lbl = QLabel(f"... and {len(timeline_data) - max_events} more events. View full history in My Records.")
+                more_lbl.setStyleSheet("color: #64748b; font-style: italic; padding: 10px;")
+                timeline_layout.addWidget(more_lbl)
+            
+            content_layout.addWidget(timeline_container)
+        else:
+            no_timeline = QLabel("No medical history found. Upload reports or book appointments to see your timeline here.")
+            no_timeline.setStyleSheet("color: #64748b; font-style: italic; padding: 20px; background: white; border-radius: 10px; border: 1px solid #e2e8f0;")
+            content_layout.addWidget(no_timeline)
         
-        # Row 3: Disease Trend Chart + Vitals
+        # ── 3. Disease Trend + Vitals Charts ──
         middle_layout = QHBoxLayout()
         middle_layout.setSpacing(20)
         
-        # ── Disease Trend Chart (real data from uploaded reports) ──
+        # Disease Trend Chart
         trend_card = QFrame()
         trend_card.setObjectName("Card")
+        trend_card.setStyleSheet("QFrame#Card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; }")
         trend_layout = QVBoxLayout(trend_card)
         tl = QLabel("📊 Disease / Diagnosis Trend")
         tl.setStyleSheet("font-weight: bold; font-size: 16px;")
@@ -539,16 +506,17 @@ class PatientDashboard(QWidget):
             trend_layout.addWidget(QLabel("Upload reports to see disease trends."))
         middle_layout.addWidget(trend_card, 2)
         
-        # ── Real Vitals Timeline ──
+        # Vitals Timeline
         vitals_card = QFrame()
         vitals_card.setObjectName("Card")
+        vitals_card.setStyleSheet("QFrame#Card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; }")
         vitals_layout = QVBoxLayout(vitals_card)
         vl = QLabel("🩺 Vitals Timeline")
         vl.setStyleSheet("font-weight: bold; font-size: 16px;")
         vitals_layout.addWidget(vl)
         
+        vitals_timeline = get_patient_vitals_timeline(self.user_data['id'])
         if vitals_timeline:
-            # Build HR trend from real vitals
             hr_points = []
             for entry in vitals_timeline:
                 hr_raw = entry.get("heart_rate")
@@ -573,74 +541,68 @@ class PatientDashboard(QWidget):
         middle_layout.addWidget(vitals_card, 1)
         content_layout.addLayout(middle_layout)
         
-        
-        # Row 4: AI Risk & Prediction Section
-        risk_layout = QHBoxLayout()
-        risk_card = QFrame()
-        risk_card.setObjectName("Card")
-        rl = QVBoxLayout(risk_card)
-        rtl = QLabel("⚠️ AI Risk & Progression Predictions")
-        rtl.setStyleSheet("font-weight: bold; font-size: 16px; color: #ef4444;")
-        rl.addWidget(rtl)
-        
-        from PyQt6.QtWidgets import QProgressBar
-        
-        prog_layout = QHBoxLayout()
-        
-        p1_col = QVBoxLayout()
-        p1_lbl = QLabel("Hypertension Progression Probability")
-        p1_bar = QProgressBar()
-        p1_bar.setValue(hypertension_val)
-        p1_bar.setStyleSheet("QProgressBar { border: 1px solid #cbd5e1; border-radius: 5px; text-align: center; } QProgressBar::chunk { background-color: #f59e0b; border-radius: 4px; }")
-        p1_col.addWidget(p1_lbl)
-        p1_col.addWidget(p1_bar)
-        
-        p2_col = QVBoxLayout()
-        p2_lbl = QLabel("Cardiac Event Risk")
-        p2_bar = QProgressBar()
-        p2_bar.setValue(cardiac_val)
-        p2_bar.setStyleSheet("QProgressBar { border: 1px solid #cbd5e1; border-radius: 5px; text-align: center; } QProgressBar::chunk { background-color: #10b981; border-radius: 4px; }")
-        p2_col.addWidget(p2_lbl)
-        p2_col.addWidget(p2_bar)
-        
-        prog_layout.addLayout(p1_col)
-        prog_layout.addLayout(p2_col)
-        
-        rl.addLayout(prog_layout)
-        risk_layout.addWidget(risk_card)
-        content_layout.addLayout(risk_layout)
-        
-        # Row 5: Heatmap & Adherence & Summary
+        # ── 4. Bottom Row: Recent Reports + Key Findings + AI Summary ──
         bottom_layout = QHBoxLayout()
         bottom_layout.setSpacing(20)
         
-        # 5. Symptom Heatmap
-        hm_card = QFrame()
-        hm_card.setObjectName("Card")
-        hm_layout = QVBoxLayout(hm_card)
-        hl = QLabel("Symptom Frequency (Last 12 Weeks)")
-        hl.setStyleSheet("font-weight: bold; font-size: 16px;")
-        hm_layout.addWidget(hl)
-        hm_layout.addWidget(SymptomHeatmap(patient_id=self.user_data['id']))
-        bottom_layout.addWidget(hm_card, 2)
+        # Recent Reports mini-list
+        recent_card = QFrame()
+        recent_card.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px;")
+        recent_layout = QVBoxLayout(recent_card)
+        rl = QLabel("📝 Recent Reports")
+        rl.setStyleSheet("font-weight: bold; font-size: 16px; color: #0f766e;")
+        recent_layout.addWidget(rl)
         
-        # 6. Medication Adherence
-        med_card = QFrame()
-        med_card.setObjectName("Card")
-        med_layout = QVBoxLayout(med_card)
-        ml = QLabel("Medication Adherence")
-        ml.setStyleSheet("font-weight: bold; font-size: 16px;")
-        med_layout.addWidget(ml)
-        rad = RadialProgress(92 if agg_data["has_data"] else 0, "Weekly Goal")
-        med_layout.addWidget(rad, alignment=Qt.AlignmentFlag.AlignCenter)
-        bottom_layout.addWidget(med_card, 1)
+        # Show last 5 records from timeline
+        report_events = [e for e in (timeline_data or []) if e.get("source") == "record"][:5]
+        if report_events:
+            for ev in report_events:
+                r_frame = QFrame()
+                r_frame.setStyleSheet("background: #f8fafc; border-radius: 6px; padding: 8px; margin-bottom: 4px; border: 1px solid #e2e8f0;")
+                r_layout = QHBoxLayout(r_frame)
+                r_layout.setContentsMargins(8, 4, 8, 4)
+                r_date = QLabel(ev["date"])
+                r_date.setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold;")
+                r_title = QLabel(ev["title"][:35])
+                r_title.setStyleSheet("color: #1e293b; font-size: 13px;")
+                r_type = QLabel(ev["type"])
+                r_type.setStyleSheet("color: #0d9488; font-size: 10px;")
+                r_layout.addWidget(r_date)
+                r_layout.addWidget(r_title)
+                r_layout.addStretch()
+                r_layout.addWidget(r_type)
+                recent_layout.addWidget(r_frame)
+        else:
+            recent_layout.addWidget(QLabel("No reports uploaded yet."))
+        recent_layout.addStretch()
+        bottom_layout.addWidget(recent_card, 1)
         
-        # 8/9. AI Doctor Summary
+        # Key Findings & Vitals
+        f_card = QFrame()
+        f_card.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px;")
+        f_layout = QVBoxLayout(f_card)
+        f_title = QLabel("🔬 Key Findings & Vital Signs")
+        f_title.setStyleSheet("font-weight: bold; font-size: 16px; color: #0f766e;")
+        f_layout.addWidget(f_title)
+        
+        if agg_data["key_findings"] or agg_data["vital_signs"]:
+            combined_findings = agg_data["key_findings"][:5] + agg_data["vital_signs"][:5]
+            findings_text = "\n".join([f"• {f}" for f in combined_findings])
+        else:
+            findings_text = "No detailed findings available.\nUpload a report to extract vitals and findings."
+            
+        ft_lbl = QLabel(findings_text)
+        ft_lbl.setWordWrap(True)
+        ft_lbl.setStyleSheet("font-size: 13px; line-height: 1.5; color: #334155;")
+        f_layout.addWidget(ft_lbl)
+        f_layout.addStretch()
+        bottom_layout.addWidget(f_card, 1)
+        
+        # AI Doctor Summary
         doc_card = QFrame()
-        doc_card.setObjectName("Card")
-        doc_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px;")
+        doc_card.setStyleSheet("background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px;")
         doc_layout = QVBoxLayout(doc_card)
-        dl = QLabel("⚕️ Doctor Quick Summary")
+        dl = QLabel("⚕️ AI Health Summary")
         dl.setStyleSheet("font-weight: bold; font-size: 16px; color: #0f766e;")
         doc_layout.addWidget(dl)
         
@@ -651,36 +613,12 @@ class PatientDashboard(QWidget):
             
         dt = QLabel(summary_text)
         dt.setWordWrap(True)
-        dt.setStyleSheet("font-size: 14px; line-height: 1.5; color: #334155;")
+        dt.setStyleSheet("font-size: 13px; line-height: 1.5; color: #334155;")
         doc_layout.addWidget(dt)
         doc_layout.addStretch()
         bottom_layout.addWidget(doc_card, 1)
         
         content_layout.addLayout(bottom_layout)
-        
-        # Row 6: Detailed Key Findings & Vitals
-        findings_layout = QHBoxLayout()
-        f_card = QFrame()
-        f_card.setObjectName("Card")
-        f_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px;")
-        f_layout = QVBoxLayout(f_card)
-        f_title = QLabel("🔬 Recent Key Findings & Vital Signs")
-        f_title.setStyleSheet("font-weight: bold; font-size: 16px; color: #0f766e;")
-        f_layout.addWidget(f_title)
-        
-        if agg_data["key_findings"] or agg_data["vital_signs"]:
-            combined_findings = agg_data["key_findings"][:5] + agg_data["vital_signs"][:5]
-            findings_text = "\n".join([f"• {f}" for f in combined_findings])
-        else:
-            findings_text = "No detailed findings available. Please upload a report to extract vitals and findings."
-            
-        ft_lbl = QLabel(findings_text)
-        ft_lbl.setWordWrap(True)
-        ft_lbl.setStyleSheet("font-size: 14px; line-height: 1.5; color: #334155;")
-        f_layout.addWidget(ft_lbl)
-        findings_layout.addWidget(f_card)
-        
-        content_layout.addLayout(findings_layout)
         content_layout.addStretch()
         
         scroll_area.setWidget(scroll_content)

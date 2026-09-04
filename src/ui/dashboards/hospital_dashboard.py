@@ -6,8 +6,9 @@ from src.ui.styles import get_sidebar_style, CONTENT_STYLE
 from src.database import get_hospital_resources, update_hospital_resources
 from src.ui.components.hospital_tabs import (
     PatientAdmissionWidget, HospitalStaffWidget, HospitalInventoryWidget, 
-    HospitalAmbulanceWidget, HospitalTreatmentWidget
+    HospitalAmbulanceWidget, HospitalTreatmentWidget, HospitalGrantWidget
 )
+from src.ui.components.blockchain_viewer import BlockchainViewerWidget
 
 class HospitalDashboard(QWidget):
     def __init__(self, user_data, logout_callback):
@@ -38,7 +39,7 @@ class HospitalDashboard(QWidget):
         
         # Menu Items
         self.menu_btns = {}
-        menu_items = ["Overview", "Patient Admission", "Staff", "Inventory", "Ambulance", "Treatment Tracking"]
+        menu_items = ["Overview", "Patient Admission", "Govt Grants", "Staff", "Inventory", "Ambulance", "Treatment Tracking", "⛓️ Blockchain Audit"]
         for item in menu_items:
             btn = QPushButton(item)
             btn.setCheckable(True)
@@ -73,22 +74,30 @@ class HospitalDashboard(QWidget):
         # Page 1: Patient Admission
         self.admissions_page = PatientAdmissionWidget(self.user_data['id'])
         self.stack.addWidget(self.admissions_page)
+
+        # Page 2: Govt Grants
+        self.grants_page = HospitalGrantWidget(self.user_data['id'])
+        self.stack.addWidget(self.grants_page)
         
-        # Page 2: Staff
+        # Page 3: Staff
         self.staff_page = HospitalStaffWidget(self.user_data['id'])
         self.stack.addWidget(self.staff_page)
         
-        # Page 3: Inventory
+        # Page 4: Inventory
         self.inventory_page = HospitalInventoryWidget(self.user_data['id'])
         self.stack.addWidget(self.inventory_page)
         
-        # Page 4: Ambulance
+        # Page 5: Ambulance
         self.ambulance_page = HospitalAmbulanceWidget(self.user_data['id'])
         self.stack.addWidget(self.ambulance_page)
         
-        # Page 5: Treatment Tracking
+        # Page 6: Treatment Tracking
         self.treatment_page = HospitalTreatmentWidget(self.user_data['id'])
         self.stack.addWidget(self.treatment_page)
+
+        # Page 7: Blockchain Audit
+        self.blockchain_page = BlockchainViewerWidget(patient_id=None)
+        self.stack.addWidget(self.blockchain_page)
         
         main_layout.addWidget(self.sidebar)
         main_layout.addWidget(self.content_area)
@@ -106,18 +115,24 @@ class HospitalDashboard(QWidget):
         elif page_name == "Patient Admission":
             self.admissions_page.load_data()
             self.stack.setCurrentIndex(1)
+        elif page_name == "Govt Grants":
+            self.grants_page.load_data()
+            self.stack.setCurrentIndex(2)
         elif page_name == "Staff":
             self.staff_page.load_data()
-            self.stack.setCurrentIndex(2)
+            self.stack.setCurrentIndex(3)
         elif page_name == "Inventory":
             self.inventory_page.load_data()
-            self.stack.setCurrentIndex(3)
+            self.stack.setCurrentIndex(4)
         elif page_name == "Ambulance":
             self.ambulance_page.load_data()
-            self.stack.setCurrentIndex(4)
+            self.stack.setCurrentIndex(5)
         elif page_name == "Treatment Tracking":
             self.treatment_page.load_data()
-            self.stack.setCurrentIndex(5)
+            self.stack.setCurrentIndex(6)
+        elif page_name == "⛓️ Blockchain Audit":
+            self.blockchain_page.load_data()
+            self.stack.setCurrentIndex(7)
 
     def create_overview_page(self):
         page = QWidget()

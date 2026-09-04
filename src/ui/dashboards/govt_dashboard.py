@@ -4,7 +4,8 @@ from PyQt6.QtWidgets import (
 from src.ui.styles import get_sidebar_style, CONTENT_STYLE
 from src.database import get_govt_stats
 from src.ui.components.analytics_card import StatCard, DiseaseTrendWidget, ResourceMonitorWidget, InteractiveAnalyticsWidget
-from src.ui.components.govt_tabs import GovtReportsWidget
+from src.ui.components.govt_tabs import GovtReportsWidget, GovtGrantApprovalWidget
+from src.ui.components.blockchain_viewer import BlockchainViewerWidget
 from src.services.ai_service import AIService
 
 class GovtDashboard(QWidget):
@@ -36,7 +37,7 @@ class GovtDashboard(QWidget):
         
         # Menu Items
         self.menu_btns = {}
-        menu_items = ["Overview", "Health Trends", "Disease Surveillance", "Resource Monitor", "Reports"]
+        menu_items = ["Overview", "Health Trends", "Disease Surveillance", "Resource Monitor", "Hospital Grants", "Reports", "⛓️ Blockchain Audit"]
         
         for item in menu_items:
             btn = QPushButton(item)
@@ -68,25 +69,57 @@ class GovtDashboard(QWidget):
         # Fetch Data
         self.stats = get_govt_stats()
 
-        # Page 1: Overview
+        # Page 0: Overview
         self.overview_page = self.create_overview_page()
         self.stack.addWidget(self.overview_page)
         
-        # Page 2: Health Trends
+        # Page 1: Health Trends
         self.trends_page = InteractiveAnalyticsWidget()
         self.stack.addWidget(self.trends_page)
         
-        # Page 3: Disease Surveillance
+        # Page 2: Disease Surveillance
         self.disease_page = self.create_disease_page()
         self.stack.addWidget(self.disease_page)
 
-        # Page 4: Resource Monitor
+        # Page 3: Resource Monitor
         self.resource_page = ResourceMonitorWidget()
         self.stack.addWidget(self.resource_page)
+
+        # Page 4: Hospital Grants
+        self.grants_page = GovtGrantApprovalWidget()
+        self.stack.addWidget(self.grants_page)
         
         # Page 5: Reports
         self.reports_page = GovtReportsWidget()
         self.stack.addWidget(self.reports_page)
+
+        # Page 6: Blockchain Audit
+        self.blockchain_page = BlockchainViewerWidget(patient_id=None)
+        self.stack.addWidget(self.blockchain_page)
+        
+        main_layout.addWidget(self.sidebar)
+        main_layout.addWidget(self.content_area)
+        
+        self.setLayout(main_layout)
+
+    def switch_page(self, page_name):
+        for name, btn in self.menu_btns.items():
+             if name != page_name: btn.setChecked(False)
+        self.menu_btns[page_name].setChecked(True)
+        
+        if page_name == "Overview": self.stack.setCurrentIndex(0)
+        elif page_name == "Health Trends": self.stack.setCurrentIndex(1)
+        elif page_name == "Disease Surveillance": self.stack.setCurrentIndex(2)
+        elif page_name == "Resource Monitor": self.stack.setCurrentIndex(3)
+        elif page_name == "Hospital Grants":
+            self.grants_page.load_data()
+            self.stack.setCurrentIndex(4)
+        elif page_name == "Reports": 
+            self.reports_page.load_data()
+            self.stack.setCurrentIndex(5)
+        elif page_name == "⛓️ Blockchain Audit":
+            self.blockchain_page.load_data()
+            self.stack.setCurrentIndex(6)
         
         main_layout.addWidget(self.sidebar)
         main_layout.addWidget(self.content_area)

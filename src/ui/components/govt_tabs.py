@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QMessageBox, QFileDialog
+    QTableWidgetItem, QHeaderView, QMessageBox, QFileDialog, QLineEdit
 )
 from PyQt6.QtCore import Qt
 from src.database import DB_NAME
@@ -146,3 +146,113 @@ class GovtReportsWidget(QWidget):
                     
         except Exception as e:
             print(f"Govt reports error: {e}")
+
+class GovtGrantApprovalWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        
+        title = QLabel("🏛️ Hospital Resource & Budget Grant Applications")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #475569;")
+        layout.addWidget(title)
+        
+        sub = QLabel("Review and disburse budget grants requested by hospitals. Disbursed funds are cryptographically recorded into SHA-256 Blockchain blocks to prevent corruption or fraudulent reallocation.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color: #64748b; font-size: 13px; margin-bottom: 10px;")
+        layout.addWidget(sub)
+        
+        # Action Bar
+        act_frame = QWidget()
+        act_frame.setStyleSheet("background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px;")
+        alayout = QHBoxLayout(act_frame)
+        
+        alayout.addWidget(QLabel("Approved Budget Allocation (₹):"))
+        self.approved_amount_input = QLineEdit()
+        self.approved_amount_input.setPlaceholderText("Enter Amount ₹ (e.g. 500000)")
+        alayout.addWidget(self.approved_amount_input)
+        
+        approve_btn = QPushButton("✅ Approve & Disburse (Block Sealed)")
+        approve_btn.setStyleSheet("background-color: #059669; color: white; font-weight: bold; padding: 8px 14px; border-radius: 6px;")
+        approve_btn.clicked.connect(self.approve_grant)
+        alayout.addWidget(approve_btn)
+        
+        reject_btn = QPushButton("❌ Reject Application")
+        reject_btn.setStyleSheet("background-color: #dc2626; color: white; font-weight: bold; padding: 8px 14px; border-radius: 6px;")
+        reject_btn.clicked.connect(self.reject_grant)
+        alayout.addWidget(reject_btn)
+        
+        layout.addWidget(act_frame)
+        
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(8)
+        self.table.setHorizontalHeaderLabels(["Req ID", "Hospital Name", "Resource Category", "Qty", "Requested Budget (₹)", "Approved Budget (₹)", "Status", "Reason / Justification"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table)
+        
+        self.load_data()
+
+    def load_data(self):
+        from src.database import get_resource_requests
+        rows = get_resource_requests()
+        self.table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            self.table.setItem(r, 0, QTableWidgetItem(str(row['id'])))
+            self.table.setItem(r, 1, QTableWidgetItem(str(row['hospital_name'])))
+            self.table.setItem(r, 2, QTableWidgetItem(str(row['resource_category'])))
+            self.table.setItem(r, 3, QTableWidgetItem(str(row['quantity'])))
+            self.table.setItem(r, 4, QTableWidgetItem(f"₹ {row['requested_amount']:,.2f}"))
+            self.table.setItem(r, 5, QTableWidgetItem(f"₹ {row['approved_amount']:,.2f}"))
+            
+            st_item = QTableWidgetItem(str(row['status']))
+            if row['status'] == 'Approved':
+                st_item.setForeground(Qt.GlobalColor.darkGreen)
+            elif row['status'] == 'Rejected':
+                st_item.setForeground(Qt.GlobalColor.red)
+            else:
+                st_item.setForeground(Qt.GlobalColor.darkYellow)
+            self.table.setItem(r, 6, st_item)
+            
+            self.table.setItem(r, 7, QTableWidgetItem(str(row.get('reason') or '')))
+
+    def approve_grant(self):
+        from src.database import update_resource_request_status
+        row_idx = self.table.currentRow()
+        if row_idx < 0:
+            QMessageBox.warning(self, "Selection Error", "Please select a grant request row from the table first.")
+            return
+            
+        req_id = int(self.table.item(row_idx, 0).text())
+        try:
+            amt = float(self.approved_amount_input.text().strip() or 0)
+        except ValueError:
+            QMessageBox.warning(self, "Error", "Approved Amount must be a valid number.")
+            return
+            
+        if amt <= 0:
+            # Fallback to requested amount
+            req_str = self.table.item(row_idx, 4).text().replace("₹", "").replace(",", "").strip()
+            amt = float(req_str or 0)
+            
+        ok, msg = update_resource_request_status(req_id, "Approved", amt)
+        if ok:
+            QMessageBox.information(self, "Success", msg)
+            self.approved_amount_input.clear()
+            self.load_data()
+        else:
+            QMessageBox.warning(self, "Error", msg)
+
+    def reject_grant(self):
+        from src.database import update_resource_request_status
+        row_idx = self.table.currentRow()
+        if row_idx < 0:
+            QMessageBox.warning(self, "Selection Error", "Please select a grant request row from the table first.")
+            return
+            
+        req_id = int(self.table.item(row_idx, 0).text())
+        ok, msg = update_resource_request_status(req_id, "Rejected", 0)
+        if ok:
+            QMessageBox.information(self, "Success", msg)
+            self.load_data()
+        else:
+            QMessageBox.warning(self, "Error", msg)
