@@ -69,58 +69,23 @@ class TranslateWorker(QThread):
     finished = pyqtSignal(dict)  # {tab_name: translated_text}
     error = pyqtSignal(str)
     
-    def __init__(self, summary_json, target_lang):
+    def __init__(self, texts_dict: dict, target_lang: str):
         super().__init__()
-        self.summary_json = summary_json
+        self.texts_dict = texts_dict
         self.target_lang = target_lang
     
     def run(self):
         try:
-            # Collect all tab texts and translate them
-            texts = {}
-            
-            # Tab 1: Summary
-            summary_block = self.summary_json.get("summary") or {}
-            overview = summary_block.get("patient_overview") or ""
-            bullets = self.summary_json.get("overall_summary_bullets") or []
-            summary_text = (overview or "") + "\n" + "\n".join([f"• {b}" for b in bullets if b])
-            if summary_text.strip():
-                texts["summary"] = translate_text(summary_text.strip(), self.target_lang)
-            
-            # Tab 2: Findings
-            findings = (self.summary_json.get("key_findings") or []) or (summary_block.get("key_findings") or [])
-            diagnosis = self.summary_json.get("diagnosis") or []
-            impression = self.summary_json.get("impression_in_simple_words") or []
-            combined_findings = [f for f in (findings + diagnosis + impression) if f]
-            findings_text = "\n".join([f"• {f}" for f in combined_findings])
-            if findings_text.strip():
-                texts["findings"] = translate_text(findings_text.strip(), self.target_lang)
-            
-            # Tab 3: Abnormal
-            abn_list = (self.summary_json.get("abnormal_values") or []) or (self.summary_json.get("abnormal_values_explained") or [])
-            abn_parts = []
-            for a in abn_list:
-                if isinstance(a, dict):
-                    meaning = a.get("meaning_simple") or ""
-                    if meaning:
-                        abn_parts.append(meaning)
-                elif isinstance(a, str):
-                    abn_parts.append(a)
-            if abn_parts:
-                texts["abnormal"] = translate_text("\n".join(abn_parts), self.target_lang)
-            
-            # Tab 4: Glossary
-            glo = self.summary_json.get("glossary") or []
-            glo_parts = []
-            for g in glo:
-                if isinstance(g, dict) and g.get("meaning_simple"):
-                    glo_parts.append(f"{g.get('term', '')}: {g['meaning_simple']}")
-            if glo_parts:
-                texts["glossary"] = translate_text("\n".join(glo_parts), self.target_lang)
-            
-            self.finished.emit(texts)
+            results = {}
+            for tab_name, text in self.texts_dict.items():
+                if text and text.strip():
+                    results[tab_name] = translate_text(text.strip(), self.target_lang)
+                else:
+                    results[tab_name] = text
+            self.finished.emit(results)
         except Exception as e:
             self.error.emit(str(e))
+
 class MedibriefAnalyzerDialog(QDialog):
     def __init__(self, parent_widget, pdf_path, patient_id, record_type="Report"):
         super().__init__(parent_widget)
@@ -276,6 +241,7 @@ class MedibriefAnalyzerDialog(QDialog):
     def analysis_complete(self, result: dict):
         self._elapsed_timer.stop()
         self.summary_json = result
+        self._original_tab_texts = None
         self.status_label.setText(f"✅ Analysis complete in {self._elapsed_seconds}s.")
         self.analyze_btn.setEnabled(True)
         self.tabs.setEnabled(True)
@@ -456,21 +422,37 @@ class MedibriefAnalyzerDialog(QDialog):
 
     def translate_summary(self):
         """Translate all visible tab content to the selected language."""
-        if not self.summary_json:
-            return
         lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        
+        # Save original English tab texts before first translation
+        if not hasattr(self, "_original_tab_texts") or not self._original_tab_texts:
+            self._original_tab_texts = {
+                "summary": self._get_tab_text(self.tab_summary),
+                "findings": self._get_tab_text(self.tab_findings),
+                "abnormal": self._get_tab_text(self.tab_abnormal),
+                "glossary": self._get_tab_text(self.tab_glossary),
+            }
+
         if lang_code == "en":
-            QMessageBox.information(self, "Language", "Summary is already in English. Select Hindi or Marathi to translate.")
+            for tab_name, orig in self._original_tab_texts.items():
+                tab_widget = getattr(self, f"tab_{tab_name}", None)
+                if tab_widget:
+                    self._populate_text(tab_widget, orig)
+            self.status_label.setText("🌐 Displaying in English.")
             return
         
         self.translate_btn.setEnabled(False)
         self.status_label.setText(f"🌐 Translating to {SUPPORTED_LANGS.get(lang_code, lang_code)}...")
         
-        # Run in a thread to avoid UI freeze
-        self._translate_worker = TranslateWorker(self.summary_json, lang_code)
+        # Always translate from original English texts to prevent drift
+        self._translate_worker = TranslateWorker(self._original_tab_texts, lang_code)
         self._translate_worker.finished.connect(self._on_translate_done)
         self._translate_worker.error.connect(self._on_translate_error)
         self._translate_worker.start()
+
+    def _get_tab_text(self, tab: QWidget) -> str:
+        editor = getattr(self, f"ui_{id(tab)}", None)
+        return editor.toPlainText() if editor else ""
 
     def _on_translate_done(self, translated_texts):
         """Receives dict with tab_name -> translated_text."""
@@ -624,12 +606,25 @@ class MedibriefViewerDialog(QDialog):
         
         main_layout = QVBoxLayout(self)
         
-        # --- Settings Header (Read only here except for QA Key) ---
+        # --- Settings Header ---
         header_frame = QFrame()
         header_frame.setStyleSheet("QFrame { background: white; border-bottom: 2px solid #e2e8f0; }")
         header_layout = QHBoxLayout(header_frame)
         
-        # Removed Model combo
+        # Language & Translation Toolbar
+        header_layout.addStretch()
+        lang_label = QLabel("Language:")
+        lang_label.setStyleSheet("font-weight: bold; color: #1e293b;")
+        header_layout.addWidget(lang_label)
+
+        self.lang_combo = QComboBox()
+        self.lang_combo.addItems(["English (en)", "Hindi (hi)", "Marathi (mr)"])
+        header_layout.addWidget(self.lang_combo)
+
+        self.translate_btn = QPushButton("🌐 Translate")
+        self.translate_btn.setStyleSheet("background-color: #7c3aed; color: white; padding: 6px 14px; border-radius: 4px; font-weight: bold;")
+        self.translate_btn.clicked.connect(self.translate_summary)
+        header_layout.addWidget(self.translate_btn)
         
         main_layout.addWidget(header_frame)
         
@@ -891,3 +886,55 @@ class MedibriefViewerDialog(QDialog):
                 QMessageBox.information(self, "Export Successful", f"Summary saved to {save_path}")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
+
+    def translate_summary(self):
+        """Translate all visible tab content to the selected language."""
+        lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        
+        # Save original English tab texts before first translation
+        if not hasattr(self, "_original_tab_texts") or not self._original_tab_texts:
+            self._original_tab_texts = {
+                "summary": self._get_tab_text(self.tab_summary),
+                "findings": self._get_tab_text(self.tab_findings),
+                "abnormal": self._get_tab_text(self.tab_abnormal),
+                "glossary": self._get_tab_text(self.tab_glossary),
+            }
+
+        if lang_code == "en":
+            for tab_name, orig in self._original_tab_texts.items():
+                tab_widget = getattr(self, f"tab_{tab_name}", None)
+                if tab_widget:
+                    self._populate_text(tab_widget, orig)
+            return
+        
+        self.translate_btn.setEnabled(False)
+        self.translate_btn.setText("⏳ Translating...")
+        
+        self._translate_worker = TranslateWorker(self._original_tab_texts, lang_code)
+        self._translate_worker.finished.connect(self._on_translate_done)
+        self._translate_worker.error.connect(self._on_translate_error)
+        self._translate_worker.start()
+
+    def _get_tab_text(self, tab: QWidget) -> str:
+        editor = getattr(self, f"ui_{id(tab)}", None)
+        return editor.toPlainText() if editor else ""
+
+    def _on_translate_done(self, translated_texts):
+        """Receives dict with tab_name -> translated_text."""
+        self.translate_btn.setEnabled(True)
+        self.translate_btn.setText("🌐 Translate")
+        
+        if translated_texts.get("summary"):
+            self._populate_text(self.tab_summary, translated_texts["summary"])
+        if translated_texts.get("findings"):
+            self._populate_text(self.tab_findings, translated_texts["findings"])
+        if translated_texts.get("abnormal"):
+            self._populate_text(self.tab_abnormal, translated_texts["abnormal"])
+        if translated_texts.get("glossary"):
+            self._populate_text(self.tab_glossary, translated_texts["glossary"])
+
+    def _on_translate_error(self, err):
+        self.translate_btn.setEnabled(True)
+        self.translate_btn.setText("🌐 Translate")
+        QMessageBox.warning(self, "Translation Error", str(err))
+
