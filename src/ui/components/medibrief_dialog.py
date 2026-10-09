@@ -14,6 +14,52 @@ from src.services.medibrief_pdf import build_summary_pdf_bytes
 from src.database import add_medical_record, add_past_appointment, add_prescription_entry
 from src.services.translation_service import SUPPORTED_LANGS, translate_text
 
+DIALOG_UI_STRINGS = {
+    "en": {
+        "tab_summary": "Overall Summary",
+        "tab_findings": "Key Findings",
+        "tab_abnormal": "Abnormal Values",
+        "tab_glossary": "Glossary",
+        "tab_qa": "Ask Questions",
+        "export_pdf": "📄 Export to PDF",
+        "save_record": "💾 Save to My Records",
+        "translate_btn": "🌐 Translate Summary",
+        "translate_btn_viewer": "🌐 Translate",
+        "ask_btn": "Ask",
+        "ask_placeholder": "Ask a question about this report...",
+        "close_btn": "Close Viewer",
+    },
+    "hi": {
+        "tab_summary": "समग्र सारांश (Summary)",
+        "tab_findings": "मुख्य निष्कर्ष (Findings)",
+        "tab_abnormal": "असामान्य मान (Abnormal)",
+        "tab_glossary": "शब्दावली (Glossary)",
+        "tab_qa": "प्रश्न पूछें (Ask Questions)",
+        "export_pdf": "📄 पीडीएफ डाउनलोड करें (PDF)",
+        "save_record": "💾 रिकॉर्ड सुरक्षित करें",
+        "translate_btn": "🌐 अनुवाद करें (Translate)",
+        "translate_btn_viewer": "🌐 अनुवाद करें",
+        "ask_btn": "पूछें",
+        "ask_placeholder": "इस रिपोर्ट के बारे में कोई प्रश्न पूछें...",
+        "close_btn": "बंद करें",
+    },
+    "mr": {
+        "tab_summary": "एकूण सारांश (Summary)",
+        "tab_findings": "महत्वाचे निष्कर्ष (Findings)",
+        "tab_abnormal": "असामान्य मूल्ये (Abnormal)",
+        "tab_glossary": "शब्दकोश (Glossary)",
+        "tab_qa": "प्रश्न विचारा (Ask Questions)",
+        "export_pdf": "📄 पीडीएफ डाउनलोड करा (PDF)",
+        "save_record": "💾 रेकॉर्ड जतन करा",
+        "translate_btn": "🌐 भाषांतर करा (Translate)",
+        "translate_btn_viewer": "🌐 भाषांतर करा",
+        "ask_btn": "विचारा",
+        "ask_placeholder": "या अहवालाबद्दल कोणताही प्रश्न विचारा...",
+        "close_btn": "बंद करा",
+    }
+}
+
+
 class AIWorker(QThread):
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
@@ -115,6 +161,7 @@ class MedibriefAnalyzerDialog(QDialog):
         header_layout.addWidget(QLabel("Output Language:"))
         self.lang_combo = QComboBox()
         self.lang_combo.addItems(["English (en)", "Hindi (hi)", "Marathi (mr)"])
+        self.lang_combo.currentIndexChanged.connect(self._on_lang_changed)
         header_layout.addWidget(self.lang_combo)
         
         # Removed Model Combo Box
@@ -420,9 +467,35 @@ class MedibriefAnalyzerDialog(QDialog):
         self.chat_history.append(f"<b style='color:red;'>Error:</b> {err}<br>")
         self.ask_btn.setEnabled(True)
 
+    def _on_lang_changed(self):
+        """Called when language combo selection changes."""
+        lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        self._apply_ui_language(lang_code)
+
+    def _apply_ui_language(self, lang_code: str):
+        """Updates tab titles and action button labels based on chosen language."""
+        strings = DIALOG_UI_STRINGS.get(lang_code, DIALOG_UI_STRINGS["en"])
+        self.tabs.setTabText(0, strings["tab_summary"])
+        self.tabs.setTabText(1, strings["tab_findings"])
+        self.tabs.setTabText(2, strings["tab_abnormal"])
+        self.tabs.setTabText(3, strings["tab_glossary"])
+        self.tabs.setTabText(4, strings["tab_qa"])
+        
+        if hasattr(self, "export_pdf_btn"):
+            self.export_pdf_btn.setText(strings["export_pdf"])
+        if hasattr(self, "save_record_btn"):
+            self.save_record_btn.setText(strings["save_record"])
+        if hasattr(self, "translate_btn"):
+            self.translate_btn.setText(strings["translate_btn"])
+        if hasattr(self, "ask_btn"):
+            self.ask_btn.setText(strings["ask_btn"])
+        if hasattr(self, "question_input"):
+            self.question_input.setPlaceholderText(strings["ask_placeholder"])
+
     def translate_summary(self):
         """Translate all visible tab content to the selected language."""
         lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        self._apply_ui_language(lang_code)
         
         # Save original English tab texts before first translation
         if not hasattr(self, "_original_tab_texts") or not self._original_tab_texts:
@@ -475,20 +548,21 @@ class MedibriefAnalyzerDialog(QDialog):
 
     def export_pdf(self):
         try:
-            # Generate the bytes using Medibrief PDF exporter
-            project_root = str(Path(__file__).parent.parent.parent.parent)
+            lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+            project_root = str(Path(__file__).resolve().parents[2])
             pdf_bytes = build_summary_pdf_bytes(
                 self.summary_json,
                 patient_name="Patient ID " + str(self.patient_id),
                 patient_age="Unknown",
                 patient_sex="Unknown",
                 report_id="Generated via Swasthya Medibrief",
-                project_root=project_root
+                project_root=project_root,
+                target_lang=lang_code
             )
             
             # Request user where to save it
             from PyQt6.QtWidgets import QFileDialog
-            save_path, _ = QFileDialog.getSaveFileName(self, "Save Summary PDF", "", "PDF Files (*.pdf)")
+            save_path, _ = QFileDialog.getSaveFileName(self, f"Save Summary PDF ({lang_code.upper()})", "", "PDF Files (*.pdf)")
             if save_path:
                 with open(save_path, "wb") as f:
                     f.write(pdf_bytes)
@@ -619,6 +693,7 @@ class MedibriefViewerDialog(QDialog):
 
         self.lang_combo = QComboBox()
         self.lang_combo.addItems(["English (en)", "Hindi (hi)", "Marathi (mr)"])
+        self.lang_combo.currentIndexChanged.connect(self._on_lang_changed)
         header_layout.addWidget(self.lang_combo)
 
         self.translate_btn = QPushButton("🌐 Translate")
@@ -653,15 +728,15 @@ class MedibriefViewerDialog(QDialog):
         
         # --- Footer Actions ---
         footer_layout = QHBoxLayout()
-        self.export_pdf_btn = QPushButton("Export to PDF")
+        self.export_pdf_btn = QPushButton("📄 Export to PDF")
         self.export_pdf_btn.clicked.connect(self.export_pdf)
         footer_layout.addWidget(self.export_pdf_btn)
         footer_layout.addStretch()
         
-        close_btn = QPushButton("Close Viewer")
-        close_btn.setStyleSheet("background-color: #475569; color: white; padding: 8px 15px; border-radius: 4px; font-weight: bold;")
-        close_btn.clicked.connect(self.accept)
-        footer_layout.addWidget(close_btn)
+        self.close_btn = QPushButton("Close Viewer")
+        self.close_btn.setStyleSheet("background-color: #475569; color: white; padding: 8px 15px; border-radius: 4px; font-weight: bold;")
+        self.close_btn.clicked.connect(self.accept)
+        footer_layout.addWidget(self.close_btn)
         main_layout.addLayout(footer_layout)
         
         self.populate_data()
@@ -866,20 +941,47 @@ class MedibriefViewerDialog(QDialog):
         self.chat_history.append(f"<b style='color:red;'>Error:</b> {err}<br>")
         self.ask_btn.setEnabled(True)
 
+    def _on_lang_changed(self):
+        """Called when language combo selection changes in viewer."""
+        lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        self._apply_ui_language(lang_code)
+
+    def _apply_ui_language(self, lang_code: str):
+        """Updates tab titles and buttons in viewer."""
+        strings = DIALOG_UI_STRINGS.get(lang_code, DIALOG_UI_STRINGS["en"])
+        self.tabs.setTabText(0, strings["tab_summary"])
+        self.tabs.setTabText(1, strings["tab_findings"])
+        self.tabs.setTabText(2, strings["tab_abnormal"])
+        self.tabs.setTabText(3, strings["tab_glossary"])
+        self.tabs.setTabText(4, strings["tab_qa"])
+        
+        if hasattr(self, "export_pdf_btn"):
+            self.export_pdf_btn.setText(strings["export_pdf"])
+        if hasattr(self, "close_btn"):
+            self.close_btn.setText(strings["close_btn"])
+        if hasattr(self, "translate_btn"):
+            self.translate_btn.setText(strings["translate_btn_viewer"])
+        if hasattr(self, "ask_btn"):
+            self.ask_btn.setText(strings["ask_btn"])
+        if hasattr(self, "question_input"):
+            self.question_input.setPlaceholderText(strings["ask_placeholder"])
+
     def export_pdf(self):
         try:
-            project_root = str(Path(__file__).parent.parent.parent.parent)
+            lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+            project_root = str(Path(__file__).resolve().parents[2])
             pdf_bytes = build_summary_pdf_bytes(
                 self.summary_json,
                 patient_name="Redacted for Doctor View",
                 patient_age="Unknown",
                 patient_sex="Unknown",
                 report_id="Doctor View Export",
-                project_root=project_root
+                project_root=project_root,
+                target_lang=lang_code
             )
             
             from PyQt6.QtWidgets import QFileDialog
-            save_path, _ = QFileDialog.getSaveFileName(self, "Save Summary PDF", "", "PDF Files (*.pdf)")
+            save_path, _ = QFileDialog.getSaveFileName(self, f"Save Summary PDF ({lang_code.upper()})", "", "PDF Files (*.pdf)")
             if save_path:
                 with open(save_path, "wb") as f:
                     f.write(pdf_bytes)
@@ -890,6 +992,7 @@ class MedibriefViewerDialog(QDialog):
     def translate_summary(self):
         """Translate all visible tab content to the selected language."""
         lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        self._apply_ui_language(lang_code)
         
         # Save original English tab texts before first translation
         if not hasattr(self, "_original_tab_texts") or not self._original_tab_texts:
@@ -922,7 +1025,9 @@ class MedibriefViewerDialog(QDialog):
     def _on_translate_done(self, translated_texts):
         """Receives dict with tab_name -> translated_text."""
         self.translate_btn.setEnabled(True)
-        self.translate_btn.setText("🌐 Translate")
+        lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        strings = DIALOG_UI_STRINGS.get(lang_code, DIALOG_UI_STRINGS["en"])
+        self.translate_btn.setText(strings["translate_btn_viewer"])
         
         if translated_texts.get("summary"):
             self._populate_text(self.tab_summary, translated_texts["summary"])
@@ -935,6 +1040,8 @@ class MedibriefViewerDialog(QDialog):
 
     def _on_translate_error(self, err):
         self.translate_btn.setEnabled(True)
-        self.translate_btn.setText("🌐 Translate")
+        lang_code = self.lang_combo.currentText().split("(")[-1].strip(")")
+        strings = DIALOG_UI_STRINGS.get(lang_code, DIALOG_UI_STRINGS["en"])
+        self.translate_btn.setText(strings["translate_btn_viewer"])
         QMessageBox.warning(self, "Translation Error", str(err))
 
