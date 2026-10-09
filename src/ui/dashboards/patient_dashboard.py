@@ -17,6 +17,7 @@ from src.database import (
     get_patient_timeline, set_user_language, get_user_language
 )
 from src.services.translation_service import SUPPORTED_LANGS
+from src.services.ui_localization import get_localized_ui_string
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPainterPath
@@ -136,11 +137,13 @@ class PatientDashboard(QWidget):
         for code, name in SUPPORTED_LANGS.items():
             self.lang_combo.addItem(name, code)
         # Set current language from DB
-        current_lang = get_user_language(self.user_data['id'])
+        self.current_lang = get_user_language(self.user_data['id']) or "en"
+        self.lang_combo.blockSignals(True)
         for i in range(self.lang_combo.count()):
-            if self.lang_combo.itemData(i) == current_lang:
+            if self.lang_combo.itemData(i) == self.current_lang:
                 self.lang_combo.setCurrentIndex(i)
                 break
+        self.lang_combo.blockSignals(False)
         self.lang_combo.currentIndexChanged.connect(self._on_language_changed)
         lang_layout.addWidget(lang_lbl)
         lang_layout.addWidget(self.lang_combo)
@@ -162,9 +165,9 @@ class PatientDashboard(QWidget):
         sidebar_layout.addStretch()
         
         # Logout Button
-        logout_btn = QPushButton("Logout")
-        logout_btn.clicked.connect(self.logout_callback)
-        sidebar_layout.addWidget(logout_btn)
+        self.logout_btn = QPushButton("Logout")
+        self.logout_btn.clicked.connect(self.logout_callback)
+        sidebar_layout.addWidget(self.logout_btn)
         
         # --- Content Area (Stacked Widget) ---
         self.content_area = QWidget()
@@ -225,12 +228,56 @@ class PatientDashboard(QWidget):
         main_layout.addWidget(self.content_area)
         
         self.setLayout(main_layout)
+        
+        # Apply current language across the entire UI
+        self.apply_language(self.current_lang)
 
     def _on_language_changed(self, index):
-        """Save language preference to DB when changed."""
+        """Save language preference to DB and instantly localize entire UI."""
         lang_code = self.lang_combo.itemData(index)
         if lang_code:
             set_user_language(self.user_data['id'], lang_code)
+            self.current_lang = lang_code
+            self.apply_language(lang_code)
+
+    def apply_language(self, lang_code):
+        """Apply language changes across sidebar, home page, and all child widgets."""
+        self.current_lang = lang_code
+        
+        # 1. Update Sidebar Menu Buttons
+        for item, btn in self.menu_btns.items():
+            btn.setText(get_localized_ui_string(item, lang_code))
+        if hasattr(self, 'logout_btn'):
+            self.logout_btn.setText(get_localized_ui_string("Logout", lang_code))
+            
+        # 2. Re-create and replace Home Page in stacked widget
+        if hasattr(self, 'stack') and hasattr(self, 'home_page'):
+            curr_idx = self.stack.currentIndex()
+            old_home = self.home_page
+            self.home_page = self.create_home_page()
+            self.stack.removeWidget(old_home)
+            old_home.deleteLater()
+            self.stack.insertWidget(0, self.home_page)
+            if curr_idx == 0:
+                self.stack.setCurrentIndex(0)
+                
+        # 3. Propagate to child tab pages
+        pages = [
+            getattr(self, 'records_page', None),
+            getattr(self, 'appointments_page', None),
+            getattr(self, 'prescriptions_page', None),
+            getattr(self, 'treatment_page', None),
+            getattr(self, 'med_verify_page', None),
+            getattr(self, 'settings_page', None),
+            getattr(self, 'find_doc_page', None),
+            getattr(self, 'chatbot_page', None),
+        ]
+        for p in pages:
+            if p and hasattr(p, 'apply_language'):
+                try:
+                    p.apply_language(lang_code)
+                except Exception as e:
+                    print(f"Error applying language to page {p}: {e}")
 
     def switch_page(self, page_name):
         # Uncheck all others
@@ -271,6 +318,7 @@ class PatientDashboard(QWidget):
     def create_home_page(self):
         page = QWidget()
         page.setStyleSheet("background-color: #f0f4f8;")
+        lang = getattr(self, 'current_lang', None) or get_user_language(self.user_data['id']) or 'en'
         
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -287,12 +335,13 @@ class PatientDashboard(QWidget):
         header_layout = QVBoxLayout()
         import datetime
         hour = datetime.datetime.now().hour
-        greeting = "Good morning" if hour < 12 else ("Good afternoon" if hour < 17 else "Good evening")
+        greeting_key = "Good morning" if hour < 12 else ("Good afternoon" if hour < 17 else "Good evening")
+        greeting = get_localized_ui_string(greeting_key, lang)
         welcome_msg = QLabel(f"{greeting}, {self.user_data['full_name']}")
         welcome_msg.setStyleSheet("font-size: 32px; font-weight: 800; color: #0f172a;")
         header_layout.addWidget(welcome_msg)
         
-        subtitle = QLabel("Your AI Health Control Center — All your medical history in one place.")
+        subtitle = QLabel(get_localized_ui_string("subtitle", lang))
         subtitle.setStyleSheet("font-size: 16px; color: #64748b;")
         header_layout.addWidget(subtitle)
         content_layout.addLayout(header_layout)
@@ -309,13 +358,16 @@ class PatientDashboard(QWidget):
         score_color = "#10b981" if risk_score > 70 else ("#f59e0b" if risk_score > 40 else "#ef4444")
         active_conditions_count = len(agg_data["conditions"])
         
+        raw_risk = ("Low" if risk_score > 60 else "Elevated") if agg_data["has_data"] else "N/A"
+        risk_display = get_localized_ui_string(raw_risk, lang) if raw_risk in ("Low", "Elevated") else raw_risk
+        
         card_data = [
             ("Health Stability", f"{risk_score}/100" if agg_data["has_data"] else "N/A", score_color, "AI assessment"),
             ("Active Conditions", str(active_conditions_count), "#f59e0b", "Currently tracked"),
             ("Active Medications", str(med_count), "#8b5cf6", "From prescriptions"),
             ("Reports Uploaded", str(agg_data['record_count']), "#0ea5e9", "Analyzer status"),
             ("Appointments", str(stats['appointments']), "#6366f1", "Total visits"),
-            ("Emergency Risk", ("Low" if risk_score > 60 else "Elevated") if agg_data["has_data"] else "N/A", score_color, "Based on vitals"),
+            ("Emergency Risk", risk_display, score_color, "Based on vitals"),
         ]
         
         row, col = 0, 0
@@ -335,11 +387,11 @@ class PatientDashboard(QWidget):
                 }
             """)
             cl = QVBoxLayout(c)
-            t_lbl = QLabel(title)
+            t_lbl = QLabel(get_localized_ui_string(title, lang))
             t_lbl.setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold; text-transform: uppercase;")
             v_lbl = QLabel(val)
             v_lbl.setStyleSheet(f"color: {color}; font-size: 26px; font-weight: 800;")
-            s_lbl = QLabel(sub)
+            s_lbl = QLabel(get_localized_ui_string(sub, lang))
             s_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
             cl.addWidget(t_lbl)
             cl.addWidget(v_lbl)
@@ -353,7 +405,7 @@ class PatientDashboard(QWidget):
         content_layout.addLayout(top_cards_layout)
         
         # ── 2. Date-Based Medical Timeline (Main Section) ──
-        timeline_header = QLabel("📅 Medical History Timeline")
+        timeline_header = QLabel(get_localized_ui_string("Medical History Timeline", lang))
         timeline_header.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e293b; margin-top: 15px;")
         content_layout.addWidget(timeline_header)
         
@@ -461,13 +513,13 @@ class PatientDashboard(QWidget):
                 shown_count += 1
             
             if len(timeline_data) > max_events:
-                more_lbl = QLabel(f"... and {len(timeline_data) - max_events} more events. View full history in My Records.")
+                more_lbl = QLabel(get_localized_ui_string("more_events_template", lang).format(count=len(timeline_data) - max_events))
                 more_lbl.setStyleSheet("color: #64748b; font-style: italic; padding: 10px;")
                 timeline_layout.addWidget(more_lbl)
             
             content_layout.addWidget(timeline_container)
         else:
-            no_timeline = QLabel("No medical history found. Upload reports or book appointments to see your timeline here.")
+            no_timeline = QLabel(get_localized_ui_string("No medical history found. Upload reports or book appointments to see your timeline here.", lang))
             no_timeline.setStyleSheet("color: #64748b; font-style: italic; padding: 20px; background: white; border-radius: 10px; border: 1px solid #e2e8f0;")
             content_layout.addWidget(no_timeline)
         
@@ -480,7 +532,7 @@ class PatientDashboard(QWidget):
         trend_card.setObjectName("Card")
         trend_card.setStyleSheet("QFrame#Card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; }")
         trend_layout = QVBoxLayout(trend_card)
-        tl = QLabel("📊 Disease / Diagnosis Trend")
+        tl = QLabel(get_localized_ui_string("Disease / Diagnosis Trend", lang))
         tl.setStyleSheet("font-weight: bold; font-size: 16px;")
         trend_layout.addWidget(tl)
         
@@ -503,7 +555,7 @@ class PatientDashboard(QWidget):
             bar_chart.getPlotItem().setLabel("left", "Occurrences")
             trend_layout.addWidget(bar_chart)
         else:
-            trend_layout.addWidget(QLabel("Upload reports to see disease trends."))
+            trend_layout.addWidget(QLabel(get_localized_ui_string("Upload reports to see disease trends.", lang)))
         middle_layout.addWidget(trend_card, 2)
         
         # Vitals Timeline
@@ -511,7 +563,7 @@ class PatientDashboard(QWidget):
         vitals_card.setObjectName("Card")
         vitals_card.setStyleSheet("QFrame#Card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; }")
         vitals_layout = QVBoxLayout(vitals_card)
-        vl = QLabel("🩺 Vitals Timeline")
+        vl = QLabel(get_localized_ui_string("Vitals Timeline", lang))
         vl.setStyleSheet("font-weight: bold; font-size: 16px;")
         vitals_layout.addWidget(vl)
         
@@ -528,13 +580,13 @@ class PatientDashboard(QWidget):
                     except (ValueError, AttributeError):
                         pass
             if hr_points:
-                tc = TrendChartWidget("Heart Rate (bpm)", hr_points)
+                tc = TrendChartWidget(get_localized_ui_string("Heart Rate (bpm)", lang), hr_points)
                 tc.setFixedHeight(160)
                 vitals_layout.addWidget(tc)
             else:
-                vitals_layout.addWidget(QLabel("No HR data extracted yet."))
+                vitals_layout.addWidget(QLabel(get_localized_ui_string("No HR data extracted yet.", lang)))
         else:
-            no_v = QLabel("No vitals extracted yet.\nUpload reports to populate.")
+            no_v = QLabel(get_localized_ui_string("No vitals extracted yet.\nUpload reports to populate.", lang))
             no_v.setStyleSheet("color: #64748b;")
             vitals_layout.addWidget(no_v)
             
@@ -549,7 +601,7 @@ class PatientDashboard(QWidget):
         recent_card = QFrame()
         recent_card.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px;")
         recent_layout = QVBoxLayout(recent_card)
-        rl = QLabel("📝 Recent Reports")
+        rl = QLabel(get_localized_ui_string("Recent Reports", lang))
         rl.setStyleSheet("font-weight: bold; font-size: 16px; color: #0f766e;")
         recent_layout.addWidget(rl)
         
@@ -573,7 +625,7 @@ class PatientDashboard(QWidget):
                 r_layout.addWidget(r_type)
                 recent_layout.addWidget(r_frame)
         else:
-            recent_layout.addWidget(QLabel("No reports uploaded yet."))
+            recent_layout.addWidget(QLabel(get_localized_ui_string("No reports uploaded yet.", lang)))
         recent_layout.addStretch()
         bottom_layout.addWidget(recent_card, 1)
         
@@ -581,7 +633,7 @@ class PatientDashboard(QWidget):
         f_card = QFrame()
         f_card.setStyleSheet("background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px;")
         f_layout = QVBoxLayout(f_card)
-        f_title = QLabel("🔬 Key Findings & Vital Signs")
+        f_title = QLabel(get_localized_ui_string("Key Findings & Vital Signs", lang))
         f_title.setStyleSheet("font-weight: bold; font-size: 16px; color: #0f766e;")
         f_layout.addWidget(f_title)
         
@@ -589,7 +641,7 @@ class PatientDashboard(QWidget):
             combined_findings = agg_data["key_findings"][:5] + agg_data["vital_signs"][:5]
             findings_text = "\n".join([f"• {f}" for f in combined_findings])
         else:
-            findings_text = "No detailed findings available.\nUpload a report to extract vitals and findings."
+            findings_text = get_localized_ui_string("No detailed findings available.\nUpload a report to extract vitals and findings.", lang)
             
         ft_lbl = QLabel(findings_text)
         ft_lbl.setWordWrap(True)
@@ -602,14 +654,14 @@ class PatientDashboard(QWidget):
         doc_card = QFrame()
         doc_card.setStyleSheet("background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px;")
         doc_layout = QVBoxLayout(doc_card)
-        dl = QLabel("⚕️ AI Health Summary")
+        dl = QLabel(get_localized_ui_string("AI Health Summary", lang))
         dl.setStyleSheet("font-weight: bold; font-size: 16px; color: #0f766e;")
         doc_layout.addWidget(dl)
         
         if agg_data["recent_summaries"]:
             summary_text = " ".join(agg_data["recent_summaries"][:3])
         else:
-            summary_text = "No recent summaries available. Please upload reports to generate AI insights."
+            summary_text = get_localized_ui_string("No recent summaries available. Please upload reports to generate AI insights.", lang)
             
         dt = QLabel(summary_text)
         dt.setWordWrap(True)

@@ -53,7 +53,7 @@ def get_sidebar_style(role):
             text-align: left;
             padding: 14px 24px;
             font-size: 15px;
-            font-family: 'Segoe UI', 'Inter', sans-serif;
+            font-family: 'Kohinoor Devanagari', 'Noto Sans Devanagari', 'Segoe UI', 'Inter', sans-serif;
             border: none;
             border-left: 4px solid transparent;
             margin: 2px 0px;
@@ -73,14 +73,14 @@ def get_sidebar_style(role):
             font-size: 20px;
             font-weight: 800;
             padding: 24px 20px;
-            font-family: 'Segoe UI', 'Inter', sans-serif;
+            font-family: 'Kohinoor Devanagari', 'Noto Sans Devanagari', 'Segoe UI', 'Inter', sans-serif;
             letter-spacing: 0.5px;
         }}
     """
 
 CONTENT_STYLE = """
     * {
-        font-family: 'Segoe UI', 'Inter', sans-serif;
+        font-family: 'Kohinoor Devanagari', 'Noto Sans Devanagari', 'Segoe UI', 'Inter', sans-serif;
         color: #1e293b;
     }
     QWidget#ContentArea {

@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from src.services.ai_service import AIService
+from src.services.ui_localization import get_localized_ui_string
 
 class AIAssistantWorker(QThread):
     chunk_received = pyqtSignal(str)
@@ -25,6 +26,7 @@ class AIAssistantWorker(QThread):
 class ChatbotWidget(QWidget):
     def __init__(self):
         super().__init__()
+        self.current_lang = "en"
         self.init_ui()
         
     def init_ui(self):
@@ -32,10 +34,9 @@ class ChatbotWidget(QWidget):
         
         # Header
         header_layout = QHBoxLayout()
-        header = QLabel("🤖 AI Health Assistant")
-        header.setStyleSheet("font-size: 18px; font-weight: bold; color: #0f766e;")
-        header_layout.addWidget(header)
-        
+        self.header = QLabel("🤖 AI Health Assistant")
+        self.header.setStyleSheet("font-size: 18px; font-weight: bold; color: #0f766e;")
+        header_layout.addWidget(self.header)
         header_layout.addStretch()
         # Removed model combo
         
@@ -89,6 +90,12 @@ class ChatbotWidget(QWidget):
         
         # Initial Greeting
         self.append_message("Assistant", "Hello! I am your Swasthya AI Assistant. How can I help you today? (Ask me general health and wellness questions.)")
+
+    def apply_language(self, lang_code):
+        self.current_lang = lang_code
+        self.header.setText(get_localized_ui_string("🤖 AI Health Assistant", lang_code))
+        self.input_field.setPlaceholderText(get_localized_ui_string("Type your health question here...", lang_code))
+        self.send_btn.setText(get_localized_ui_string("Send", lang_code, default="Ask"))
 
     def send_message(self):
         user_text = self.input_field.text().strip()

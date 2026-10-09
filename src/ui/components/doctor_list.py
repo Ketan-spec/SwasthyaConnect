@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from src.database import get_all_doctors, create_referral, book_appointment, get_distinct_specializations
+from src.services.ui_localization import get_localized_ui_string
 
 # Disease → Specialization mapping for smart search
 DISEASE_SPECIALIZATION_MAP = {
@@ -183,9 +184,9 @@ class DoctorListWidget(QWidget):
         
         # Header
         title = "Find a Specialist" if self.mode == "find" else "Refer to Specialist"
-        header = QLabel(title)
-        header.setStyleSheet("font-size: 18px; font-weight: bold; color: #1e3a8a; margin-bottom: 10px;")
-        layout.addWidget(header)
+        self.header = QLabel(title)
+        self.header.setStyleSheet("font-size: 18px; font-weight: bold; color: #1e3a8a; margin-bottom: 10px;")
+        layout.addWidget(self.header)
         
         # Smart search hint
         if self.mode == "find":
@@ -260,6 +261,13 @@ class DoctorListWidget(QWidget):
         
         self.scroll.setWidget(self.list_container)
         layout.addWidget(self.scroll)
+
+    def apply_language(self, lang_code):
+        self.current_lang = lang_code
+        if self.mode == "find":
+            self.header.setText(get_localized_ui_string("Find a Specialist", lang_code))
+        self.state_filter.setItemText(0, get_localized_ui_string("All States", lang_code))
+        self.spec_filter.setItemText(0, get_localized_ui_string("All Specializations", lang_code))
 
     def load_doctors(self):
         selected_state = self.state_filter.currentText()

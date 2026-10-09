@@ -11,24 +11,26 @@ import json
 from src.ui.components.medibrief_dialog import MedibriefAnalyzerDialog
 from src.services.medicine_service import MedicineService
 from src.ui.components.chatbot import AIAssistantWorker
+from src.services.ui_localization import get_localized_ui_string
 from PyQt6.QtWidgets import QTextEdit
 
 class RecordsWidget(QWidget):
     def __init__(self, user_id):
         super().__init__()
         self.user_id = user_id
+        self.current_lang = "en"
         layout = QVBoxLayout(self)
         
         # Header
         header_layout = QHBoxLayout()
-        title = QLabel("My Medical Records")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
-        header_layout.addWidget(title)
+        self.title = QLabel("My Medical Records")
+        self.title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
+        header_layout.addWidget(self.title)
         
-        upload_btn = QPushButton("Upload Medical Report (Smart Analyzer)")
-        upload_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;")
-        upload_btn.clicked.connect(self.upload_pdf)
-        header_layout.addWidget(upload_btn, alignment=Qt.AlignmentFlag.AlignRight)
+        self.upload_btn = QPushButton("Upload Medical Report (Smart Analyzer)")
+        self.upload_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;")
+        self.upload_btn.clicked.connect(self.upload_pdf)
+        header_layout.addWidget(self.upload_btn, alignment=Qt.AlignmentFlag.AlignRight)
         
         layout.addLayout(header_layout)
         
@@ -40,6 +42,23 @@ class RecordsWidget(QWidget):
         layout.addWidget(self.table)
         
         self.load_data()
+        
+    def apply_language(self, lang_code):
+        self.current_lang = lang_code
+        self.title.setText(get_localized_ui_string("My Medical Records", lang_code))
+        self.upload_btn.setText(get_localized_ui_string("Upload Medical Report (Smart Analyzer)", lang_code))
+        headers = [
+            get_localized_ui_string("Date", lang_code),
+            get_localized_ui_string("Title", lang_code),
+            get_localized_ui_string("Description", lang_code),
+            get_localized_ui_string("View", lang_code)
+        ]
+        self.table.setHorizontalHeaderLabels(headers)
+        view_text = get_localized_ui_string("View", lang_code)
+        for r in range(self.table.rowCount()):
+            w = self.table.cellWidget(r, 3)
+            if isinstance(w, QPushButton):
+                w.setText(view_text)
         
     def upload_pdf(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Medical Report", "", "PDF/Image Files (*.pdf *.png *.jpg *.jpeg)")
@@ -66,7 +85,7 @@ class RecordsWidget(QWidget):
                 self.table.setItem(r, 1, QTableWidgetItem(str(title_val) if title_val else ""))
                 self.table.setItem(r, 2, QTableWidgetItem(str(desc_val) if desc_val else ""))
                 # Add View button in the fourth column
-                view_btn = QPushButton("View")
+                view_btn = QPushButton(get_localized_ui_string("View", getattr(self, 'current_lang', 'en')))
                 view_btn.setStyleSheet("background-color: #475569; color: white; padding: 4px 8px; border-radius: 3px;")
                 # Connect to viewer dialog using summary_json and title
                 view_btn.clicked.connect(lambda _, s=summary_json, t=title_val: self.view_record(s, t))
@@ -94,11 +113,12 @@ class AppointmentsWidget(QWidget):
     def __init__(self, user_id):
         super().__init__()
         self.user_id = user_id
+        self.current_lang = "en"
         layout = QVBoxLayout(self)
         
-        title = QLabel("My Appointments")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
-        layout.addWidget(title)
+        self.title = QLabel("My Appointments")
+        self.title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
+        layout.addWidget(self.title)
         
         self.table = QTableWidget()
         self.table.setColumnCount(4)
@@ -107,6 +127,17 @@ class AppointmentsWidget(QWidget):
         layout.addWidget(self.table)
         
         self.load_data()
+
+    def apply_language(self, lang_code):
+        self.current_lang = lang_code
+        self.title.setText(get_localized_ui_string("My Appointments", lang_code))
+        headers = [
+            get_localized_ui_string("Date", lang_code),
+            get_localized_ui_string("Time", lang_code),
+            get_localized_ui_string("Doctor", lang_code),
+            get_localized_ui_string("Status", lang_code)
+        ]
+        self.table.setHorizontalHeaderLabels(headers)
 
     def load_data(self):
         try:
@@ -121,6 +152,14 @@ class AppointmentsWidget(QWidget):
             ''', (self.user_id,))
             rows = c.fetchall()
             conn.close()
+            
+            headers = [
+                get_localized_ui_string("Date", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Time", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Doctor", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Status", getattr(self, 'current_lang', 'en'))
+            ]
+            self.table.setHorizontalHeaderLabels(headers)
             
             self.table.setRowCount(len(rows))
             for r, row in enumerate(rows):
@@ -144,35 +183,55 @@ class PrescriptionsWidget(QWidget):
     def __init__(self, user_id):
         super().__init__()
         self.user_id = user_id
+        self.current_lang = "en"
         layout = QVBoxLayout(self)
         
         # Header
         header_layout = QHBoxLayout()
-        title = QLabel("My Prescriptions")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
-        header_layout.addWidget(title)
+        self.title = QLabel("My Prescriptions")
+        self.title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
+        header_layout.addWidget(self.title)
         
-        upload_btn = QPushButton("Upload Prescription (Smart Analyzer)")
-        upload_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;")
-        upload_btn.clicked.connect(self.upload_pdf)
-        header_layout.addWidget(upload_btn, alignment=Qt.AlignmentFlag.AlignRight)
+        self.upload_btn = QPushButton("Upload Prescription (Smart Analyzer)")
+        self.upload_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;")
+        self.upload_btn.clicked.connect(self.upload_pdf)
+        header_layout.addWidget(self.upload_btn, alignment=Qt.AlignmentFlag.AlignRight)
         
         layout.addLayout(header_layout)
         
         self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Date", "Medicine", "Dosage Instructions"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Date", "Medicine", "Dosage", "Frequency", "Duration"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table)
         
         self.load_data()
 
+    def apply_language(self, lang_code):
+        self.current_lang = lang_code
+        self.title.setText(get_localized_ui_string("My Prescriptions", lang_code))
+        self.upload_btn.setText(get_localized_ui_string("Upload Prescription (Smart Analyzer)", lang_code))
+        headers = [
+            get_localized_ui_string("Date", lang_code),
+            get_localized_ui_string("Medicine", lang_code),
+            get_localized_ui_string("Dosage", lang_code),
+            get_localized_ui_string("Frequency", lang_code),
+            get_localized_ui_string("Duration", lang_code)
+        ]
+        self.table.setHorizontalHeaderLabels(headers)
+
     def load_data(self):
         try:
             rows = get_patient_prescriptions(self.user_id)
             self.table.setColumnCount(5)
-            self.table.setHorizontalHeaderLabels(["Date", "Medicine", "Dosage", "Frequency", "Duration"])
-            self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            headers = [
+                get_localized_ui_string("Date", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Medicine", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Dosage", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Frequency", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Duration", getattr(self, 'current_lang', 'en'))
+            ]
+            self.table.setHorizontalHeaderLabels(headers)
             self.table.setRowCount(len(rows))
             for r, row in enumerate(rows):
                 date_val = row.get("date_added", "").split(" ")[0]
@@ -195,6 +254,7 @@ class SettingsWidget(QWidget):
     def __init__(self, user_data):
         super().__init__()
         self.user_data = user_data
+        self.current_lang = "en"
         
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -203,9 +263,9 @@ class SettingsWidget(QWidget):
         container = QWidget()
         layout = QVBoxLayout(container)
         
-        title = QLabel("Profile Settings")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
-        layout.addWidget(title)
+        self.title = QLabel("Profile Settings")
+        self.title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
+        layout.addWidget(self.title)
         
         form_frame = QFrame()
         form_frame.setStyleSheet("QFrame { background: white; border-radius: 10px; border: 1px solid #e2e8f0; }")
@@ -213,27 +273,30 @@ class SettingsWidget(QWidget):
         form_layout.setSpacing(15)
         
         # Full Name
-        form_layout.addWidget(QLabel("Full Name"))
+        self.name_lbl = QLabel("Full Name")
+        form_layout.addWidget(self.name_lbl)
         self.name_input = QLineEdit(self.user_data.get('full_name', ''))
         self.name_input.setStyleSheet("padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;")
         form_layout.addWidget(self.name_input)
         
         # Phone
-        form_layout.addWidget(QLabel("Phone Number"))
+        self.phone_lbl = QLabel("Phone Number")
+        form_layout.addWidget(self.phone_lbl)
         self.phone_input = QLineEdit(self.user_data.get('phone', ''))
         self.phone_input.setStyleSheet("padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;")
         form_layout.addWidget(self.phone_input)
         
         # Email
-        form_layout.addWidget(QLabel("Email Address"))
+        self.email_lbl = QLabel("Email Address")
+        form_layout.addWidget(self.email_lbl)
         self.email_input = QLineEdit(self.user_data.get('email', ''))
         self.email_input.setStyleSheet("padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;")
         form_layout.addWidget(self.email_input)
         
-        save_btn = QPushButton("Save Changes")
-        save_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 10px; border-radius: 5px; font-weight: bold;")
-        save_btn.clicked.connect(self.save_settings)
-        form_layout.addWidget(save_btn)
+        self.save_btn = QPushButton("Save Changes")
+        self.save_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 10px; border-radius: 5px; font-weight: bold;")
+        self.save_btn.clicked.connect(self.save_settings)
+        form_layout.addWidget(self.save_btn)
         
         layout.addWidget(form_frame)
         layout.addStretch()
@@ -242,6 +305,14 @@ class SettingsWidget(QWidget):
         
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(scroll)
+
+    def apply_language(self, lang_code):
+        self.current_lang = lang_code
+        self.title.setText(get_localized_ui_string("Profile Settings", lang_code))
+        self.name_lbl.setText(get_localized_ui_string("Full Name", lang_code))
+        self.phone_lbl.setText(get_localized_ui_string("Phone Number", lang_code))
+        self.email_lbl.setText(get_localized_ui_string("Email Address", lang_code))
+        self.save_btn.setText(get_localized_ui_string("Save Changes", lang_code))
 
     def save_settings(self):
         try:
@@ -265,19 +336,20 @@ class TreatmentStatusWidget(QWidget):
     def __init__(self, user_id):
         super().__init__()
         self.user_id = user_id
+        self.current_lang = "en"
         layout = QVBoxLayout(self)
         
-        title = QLabel("My Treatment Tracking")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
-        layout.addWidget(title)
+        self.title = QLabel("My Treatment Tracking")
+        self.title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
+        layout.addWidget(self.title)
         
         self.current_status_label = QLabel("Current Status: None")
         self.current_status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; background-color: #f1f5f9; padding: 10px; border-radius: 5px;")
         layout.addWidget(self.current_status_label)
         
-        history_title = QLabel("Treatment History")
-        history_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #475569; margin-top: 10px;")
-        layout.addWidget(history_title)
+        self.history_title = QLabel("Treatment History")
+        self.history_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #475569; margin-top: 10px;")
+        layout.addWidget(self.history_title)
         
         self.table = QTableWidget()
         self.table.setColumnCount(5)
@@ -286,6 +358,19 @@ class TreatmentStatusWidget(QWidget):
         layout.addWidget(self.table)
         
         self.load_data()
+
+    def apply_language(self, lang_code):
+        self.current_lang = lang_code
+        self.title.setText(get_localized_ui_string("My Treatment Tracking", lang_code))
+        self.history_title.setText(get_localized_ui_string("Treatment History", lang_code))
+        headers = [
+            get_localized_ui_string("Date/Time", lang_code, default="Date/Time"),
+            get_localized_ui_string("Status", lang_code),
+            get_localized_ui_string("Notes", lang_code),
+            get_localized_ui_string("Updated By", lang_code),
+            get_localized_ui_string("Role", lang_code)
+        ]
+        self.table.setHorizontalHeaderLabels(headers)
 
     def load_data(self):
         try:
@@ -300,6 +385,14 @@ class TreatmentStatusWidget(QWidget):
             else:
                 self.current_status_label.setText("No active or historical treatments found.")
                 
+            headers = [
+                get_localized_ui_string("Date/Time", getattr(self, 'current_lang', 'en'), default="Date/Time"),
+                get_localized_ui_string("Status", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Notes", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Updated By", getattr(self, 'current_lang', 'en')),
+                get_localized_ui_string("Role", getattr(self, 'current_lang', 'en'))
+            ]
+            self.table.setHorizontalHeaderLabels(headers)
             self.table.setRowCount(len(updates))
             for r, row in enumerate(updates):
                 self.table.setItem(r, 0, QTableWidgetItem(str(row['timestamp'])))
@@ -315,11 +408,12 @@ class MedicineVerificationWidget(QWidget):
     def __init__(self, user_id):
         super().__init__()
         self.user_id = user_id
+        self.current_lang = "en"
         layout = QVBoxLayout(self)
         
-        title = QLabel("Medicine Search & AI Verification System")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
-        layout.addWidget(title)
+        self.title = QLabel("Medicine Search & AI Verification System")
+        self.title.setStyleSheet("font-size: 20px; font-weight: bold; color: #0f766e;")
+        layout.addWidget(self.title)
         
         desc = QLabel("Search the national medicine database. Use AI to easily understand medicine usage, side effects, and verify against your prescriptions.")
         desc.setWordWrap(True)
@@ -330,12 +424,12 @@ class MedicineVerificationWidget(QWidget):
         self.med_input.setPlaceholderText("Enter Medicine Name (e.g. Paracetamol)")
         self.med_input.returnPressed.connect(self.search_medicine)
         
-        search_btn = QPushButton("Search Database")
-        search_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;")
-        search_btn.clicked.connect(self.search_medicine)
+        self.search_btn = QPushButton("Search Database")
+        self.search_btn.setStyleSheet("background-color: #0f766e; color: white; padding: 8px 15px; border-radius: 5px; font-weight: bold;")
+        self.search_btn.clicked.connect(self.search_medicine)
         
         form_layout.addWidget(self.med_input)
-        form_layout.addWidget(search_btn)
+        form_layout.addWidget(self.search_btn)
         layout.addLayout(form_layout)
         
         self.table = QTableWidget()
@@ -365,6 +459,20 @@ class MedicineVerificationWidget(QWidget):
         layout.addWidget(self.result_lbl)
         
         self.current_results = []
+
+    def apply_language(self, lang_code):
+        self.current_lang = lang_code
+        self.title.setText(get_localized_ui_string("Medicine Search & AI Verification System", lang_code))
+        self.med_input.setPlaceholderText(get_localized_ui_string("Enter Medicine Name (e.g. Paracetamol)", lang_code))
+        self.search_btn.setText(get_localized_ui_string("Search Database", lang_code))
+        self.explain_lbl.setText(get_localized_ui_string("AI Medicine Explanation (Double-click a row to explain):", lang_code))
+        headers = [
+            get_localized_ui_string("Name", lang_code),
+            get_localized_ui_string("Manufacturer", lang_code),
+            get_localized_ui_string("Composition", lang_code),
+            get_localized_ui_string("Price", lang_code)
+        ]
+        self.table.setHorizontalHeaderLabels(headers)
 
     def search_medicine(self):
         query = self.med_input.text().strip()
