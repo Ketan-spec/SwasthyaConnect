@@ -238,6 +238,19 @@ LOGIN_STYLES = """
         background-color: #0284c7;
         color: white;
     }
+    QPushButton#VMStatusBtn {
+        background-color: rgba(15, 23, 42, 0.85);
+        color: #38bdf8;
+        border: 1px solid #0284c7;
+        border-radius: 10px;
+        padding: 10px 18px;
+        font-size: 13px;
+        font-weight: 700;
+    }
+    QPushButton#VMStatusBtn:hover {
+        background-color: #0369a1;
+        color: white;
+    }
     QPushButton#SecondaryBtn {
         background-color: transparent;
         color: #0ea5e9;

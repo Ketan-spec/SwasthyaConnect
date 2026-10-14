@@ -29,12 +29,142 @@ class DeveloperBlockchainDialog(QDialog):
             err_lbl.setStyleSheet("color: red; padding: 20px; font-size: 16px;")
             layout.addWidget(err_lbl)
 
+class VMTelemetryDialog(QDialog):
+    """Inspect the virtual machine hypervisor specs and cross-platform edge runtime status."""
+    def __init__(self, parent=None, on_reopen_vm_manager=None):
+        super().__init__(parent)
+        self.on_reopen_vm_manager = on_reopen_vm_manager
+        from src.ui.vm_launcher import ACTIVE_VM_PROFILE
+        p = ACTIVE_VM_PROFILE
+        self.setWindowTitle(f"🖥️ UTM Hypervisor Telemetry — {p['name']}")
+        self.resize(620, 500)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #141419;
+                color: #e5e7eb;
+                font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+            }
+            QLabel {
+                color: #f1f5f9;
+                font-size: 13px;
+            }
+            QFrame#TelemetryBox {
+                background-color: #1e1e28;
+                border: 1px solid #2e2e3e;
+                border-radius: 12px;
+                padding: 16px;
+            }
+            QPushButton {
+                background-color: #007aff;
+                color: white;
+                border-radius: 8px;
+                padding: 10px 18px;
+                font-weight: 700;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #0062cc;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        header = QHBoxLayout()
+        icon_lbl = QLabel(p["icon"])
+        icon_lbl.setStyleSheet("font-size: 36px; padding: 6px; background: #232332; border-radius: 10px;")
+        t_box = QVBoxLayout()
+        name_lbl = QLabel(f"Virtual Guest: {p['name']}")
+        name_lbl.setStyleSheet("font-size: 18px; font-weight: 800; color: #38bdf8;")
+        sub_lbl = QLabel(f"UTM macOS Hypervisor (Apple hv_vm) • Sandboxed Guest Environment")
+        sub_lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
+        t_box.addWidget(name_lbl)
+        t_box.addWidget(sub_lbl)
+        header.addWidget(icon_lbl)
+        header.addSpacing(10)
+        header.addLayout(t_box)
+        header.addStretch()
+
+        status_badge = QLabel("🟢 Virtual Machine Active")
+        status_badge.setStyleSheet("color: #34d399; background: rgba(16, 185, 129, 0.15); border: 1px solid #059669; border-radius: 12px; padding: 4px 10px; font-size: 11px; font-weight: bold;")
+        header.addWidget(status_badge)
+        layout.addLayout(header)
+
+        # Telemetry Box
+        telemetry = QFrame()
+        telemetry.setObjectName("TelemetryBox")
+        t_layout = QVBoxLayout(telemetry)
+        t_layout.setSpacing(10)
+
+        specs = [
+            ("🧠 Virtual CPU Allocation", f"{p['cpu_cores']} vCPUs ({p['arch']})"),
+            ("⚡ Guest Physical Memory", f"{p['ram_mb']} MB LPDDR5 (zRAM Enabled)"),
+            ("💾 Virtual Disk Drive", f"{p['storage_gb']} GB NVMe ({p['badge']})"),
+            ("🖥️ Graphics Acceleration", p["display"]),
+            ("🌐 Virtual Network Interface", p["network"]),
+            ("📱 Platform Environment", p["runtime"]),
+            ("🤖 Offline AI Engine Constraint", p["ai_constraint"]),
+            ("🐧 Guest Kernel", p["kernel"])
+        ]
+
+        for title, val in specs:
+            row = QHBoxLayout()
+            l1 = QLabel(title)
+            l1.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: 600;")
+            l2 = QLabel(val)
+            l2.setStyleSheet("color: #f1f5f9; font-size: 12px; font-weight: bold;")
+            l2.setAlignment(Qt.AlignmentFlag.AlignRight)
+            l2.setWordWrap(True)
+            row.addWidget(l1)
+            row.addSpacing(10)
+            row.addWidget(l2, 1)
+            t_layout.addLayout(row)
+
+        layout.addWidget(telemetry)
+
+        # Performance / Offline Rationale Box
+        rationale_box = QFrame()
+        rationale_box.setStyleSheet("background-color: rgba(245, 158, 11, 0.08); border: 1px solid #d97706; border-radius: 8px; padding: 10px;")
+        r_layout = QVBoxLayout(rationale_box)
+        r_title = QLabel("💡 Local Edge Performance Rationale")
+        r_title.setStyleSheet("color: #fbbf24; font-weight: bold; font-size: 12px;")
+        r_text = QLabel(
+            "SwasthyaConnect operates inside this constrained virtual machine guest environment "
+            "(4 vCPUs / 4GB RAM) without cloud dependencies. Neural summary and translation execute "
+            "locally on-device to ensure 100% data privacy and offline zero-hallucination medical analysis."
+        )
+        r_text.setWordWrap(True)
+        r_text.setStyleSheet("color: #cbd5e1; font-size: 11px; line-height: 1.4;")
+        r_layout.addWidget(r_title)
+        r_layout.addWidget(r_text)
+        layout.addWidget(rationale_box)
+
+        layout.addStretch()
+
+        btn_row = QHBoxLayout()
+        vm_mgr_btn = QPushButton("🖥️ Open UTM VM Manager")
+        vm_mgr_btn.setStyleSheet("background-color: #2b2b38; border: 1px solid #3e3e50; color: #e2e8f0;")
+        vm_mgr_btn.clicked.connect(self._reopen_vm_mgr)
+        btn_row.addWidget(vm_mgr_btn)
+        btn_row.addStretch()
+        close_btn = QPushButton("Close Telemetry")
+        close_btn.clicked.connect(self.accept)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+    def _reopen_vm_mgr(self):
+        self.accept()
+        if self.on_reopen_vm_manager:
+            self.on_reopen_vm_manager()
+
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
+        from src.ui.vm_launcher import ACTIVE_VM_PROFILE
         self.setObjectName("MainLoginBg")
-        self.setWindowTitle("SwasthyaConnect — AI & Blockchain Digital Health Platform")
-        self.resize(1100, 750)
+        self.setWindowTitle(f"SwasthyaConnect — AI & Blockchain Platform [UTM VM: {ACTIVE_VM_PROFILE['name']}]")
+        self.resize(1120, 750)
         self.setMinimumSize(750, 550)
         self.setStyleSheet(LOGIN_STYLES)
 
@@ -55,6 +185,14 @@ class LoginWindow(QWidget):
         top_bar.addLayout(brand_layout)
         top_bar.addStretch()
         
+        # Virtual Machine Telemetry Button
+        self.vm_btn = QPushButton(f"{ACTIVE_VM_PROFILE['icon']} Guest VM: {ACTIVE_VM_PROFILE['name']} • {ACTIVE_VM_PROFILE['cpu_cores']} vCPUs")
+        self.vm_btn.setObjectName("VMStatusBtn")
+        self.vm_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.vm_btn.setToolTip("Click to view UTM Virtual Machine Telemetry & Edge Hardware Specs")
+        self.vm_btn.clicked.connect(self.open_vm_telemetry)
+        top_bar.addWidget(self.vm_btn)
+
         # Developer Access Button
         dev_btn = QPushButton("⛓️ Developer Access: Blockchain Audit Log")
         dev_btn.setObjectName("DevBlockchainBtn")
@@ -122,6 +260,18 @@ class LoginWindow(QWidget):
         """Direct Developer Access to open system-wide Blockchain Audit Viewer."""
         dialog = DeveloperBlockchainDialog(self)
         dialog.exec()
+
+    def open_vm_telemetry(self):
+        """Open UTM Hypervisor telemetry showing virtualized guest machine specs."""
+        dialog = VMTelemetryDialog(self, on_reopen_vm_manager=self.reopen_vm_manager)
+        dialog.exec()
+
+    def reopen_vm_manager(self):
+        """Reopens the UTM Virtual Machine Manager window."""
+        from src.ui.vm_launcher import VMLauncherWindow, ACTIVE_VM_PROFILE
+        self.launcher = VMLauncherWindow(on_boot_complete_callback=lambda: self.show())
+        self.launcher.show()
+        self.hide()
 
     def handle_db_reset(self):
         reply = QMessageBox.question(

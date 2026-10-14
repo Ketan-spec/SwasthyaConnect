@@ -13,7 +13,8 @@ class GovtDashboard(QWidget):
         super().__init__()
         self.logout_callback = logout_callback
         self.user_data = user_data
-        self.setWindowTitle("Government Health Admin Portal")
+        from src.ui.vm_launcher import ACTIVE_VM_PROFILE
+        self.setWindowTitle(f"Government Health Admin Portal [UTM VM: {ACTIVE_VM_PROFILE['name']}]")
         self.resize(1200, 800)
         self.setMinimumSize(800, 600)
         
@@ -34,6 +35,10 @@ class GovtDashboard(QWidget):
         title_label = QLabel("Swasthya\nAdmin")
         title_label.setObjectName("SidebarTitle")
         sidebar_layout.addWidget(title_label)
+        
+        vm_pill = QLabel(f"⚡ {ACTIVE_VM_PROFILE['badge']}\n{ACTIVE_VM_PROFILE['cpu_cores']} vCPU • {ACTIVE_VM_PROFILE['ram_mb']}MB RAM")
+        vm_pill.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: bold; background: rgba(71, 85, 105, 0.25); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 6px; padding: 4px 8px; margin: 4px 10px 8px 10px;")
+        sidebar_layout.addWidget(vm_pill)
         
         # Menu Items
         self.menu_btns = {}

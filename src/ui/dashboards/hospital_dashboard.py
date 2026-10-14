@@ -15,7 +15,8 @@ class HospitalDashboard(QWidget):
         super().__init__()
         self.logout_callback = logout_callback
         self.user_data = user_data
-        self.setWindowTitle("Hospital Dashboard")
+        from src.ui.vm_launcher import ACTIVE_VM_PROFILE
+        self.setWindowTitle(f"Hospital Dashboard [UTM VM: {ACTIVE_VM_PROFILE['name']}]")
         self.resize(1200, 800)
         self.setMinimumSize(800, 600)
         
@@ -36,6 +37,10 @@ class HospitalDashboard(QWidget):
         title_label = QLabel("Swasthya\nHospital Portal")
         title_label.setObjectName("SidebarTitle")
         sidebar_layout.addWidget(title_label)
+        
+        vm_pill = QLabel(f"⚡ {ACTIVE_VM_PROFILE['badge']}\n{ACTIVE_VM_PROFILE['cpu_cores']} vCPU • {ACTIVE_VM_PROFILE['ram_mb']}MB RAM")
+        vm_pill.setStyleSheet("color: #fca5a5; font-size: 10px; font-weight: bold; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; padding: 4px 8px; margin: 4px 10px 8px 10px;")
+        sidebar_layout.addWidget(vm_pill)
         
         # Menu Items
         self.menu_btns = {}
@@ -153,7 +158,9 @@ class HospitalDashboard(QWidget):
         welcome_msg.setObjectName("UserWelcome")
         content_layout.addWidget(welcome_msg)
         
-        details_msg = QLabel(f"ID: {self.user_data['unique_id']} | Email: {self.user_data['email']}")
+        hosp_id = self.user_data.get('unique_id', f"HOSP-{self.user_data.get('id', '001')}")
+        email = self.user_data.get('email', 'N/A')
+        details_msg = QLabel(f"ID: {hosp_id} | Email: {email}")
         details_msg.setStyleSheet("color: #64748b; font-size: 16px; margin-bottom: 20px;")
         content_layout.addWidget(details_msg)
         

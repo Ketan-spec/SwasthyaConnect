@@ -103,7 +103,8 @@ class PatientDashboard(QWidget):
         super().__init__()
         self.logout_callback = logout_callback
         self.user_data = user_data
-        self.setWindowTitle("Patient Dashboard")
+        from src.ui.vm_launcher import ACTIVE_VM_PROFILE
+        self.setWindowTitle(f"Patient Dashboard [UTM VM: {ACTIVE_VM_PROFILE['name']}]")
         self.resize(1200, 800)
         self.setMinimumSize(800, 600)
         
@@ -124,6 +125,11 @@ class PatientDashboard(QWidget):
         title_label = QLabel("Swasthya\nConnect")
         title_label.setObjectName("SidebarTitle")
         sidebar_layout.addWidget(title_label)
+        
+        # Virtual Machine guest status badge in sidebar
+        vm_pill = QLabel(f"⚡ {ACTIVE_VM_PROFILE['badge']}\n{ACTIVE_VM_PROFILE['cpu_cores']} vCPU • {ACTIVE_VM_PROFILE['ram_mb']}MB RAM")
+        vm_pill.setStyleSheet("color: #38bdf8; font-size: 10px; font-weight: bold; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; padding: 4px 8px; margin: 4px 10px 8px 10px;")
+        sidebar_layout.addWidget(vm_pill)
         
         # Language Selector in sidebar
         lang_frame = QFrame()
